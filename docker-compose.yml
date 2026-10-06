@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: gradelens_db
+    environment:
+      POSTGRES_DB: gradelens_db
+      POSTGRES_USER: gradelens_user
+      POSTGRES_PASSWORD: gradelens_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: gradelens_redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gradelens_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SECRET_KEY=gradelens-docker-production-secret-2026
+      - DEBUG=1
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
+  backend_media:
