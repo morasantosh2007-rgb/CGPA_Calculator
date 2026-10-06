@@ -1,21 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/login_screen.dart';
 import 'features/navigation/main_nav_scaffold.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final hasToken = prefs.getString('access_token')?.isNotEmpty == true;
-
-  runApp(GradeLensApp(isLoggedIn: hasToken));
+  runApp(const GradeLensApp());
 }
 
 class GradeLensApp extends StatelessWidget {
-  final bool isLoggedIn;
-
-  const GradeLensApp({super.key, required this.isLoggedIn});
+  const GradeLensApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +18,7 @@ class GradeLensApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: isLoggedIn ? const MainNavScaffold() : const LoginScreen(),
+      home: const MainNavScaffold(),
     );
   }
 }

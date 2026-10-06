@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
-import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,6 +12,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _isLoading = true;
+  bool _isRecalculating = false;
 
   @override
   void initState() {
@@ -33,16 +32,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('access_token');
-    await prefs.remove('refresh_token');
-
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
+  Future<void> _recalculateAll() async {
+    setState(() => _isRecalculating = true);
+    try {
+      await ApiClient.dio.post(ApiConstants.recalculate);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All semesters and cumulative standing recalculated!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      await _fetchProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRecalculating = false);
     }
   }
 
@@ -59,7 +69,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student Profile & Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Academic Profile & Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchProfile),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -87,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           Text(name, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
-                          Text('Reg: $regNo', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                          Text('Registration No: $regNo', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                         ],
                       ),
                     ),
@@ -147,13 +160,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 28),
 
-            // Sign Out
-            OutlinedButton.icon(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout, color: Colors.red),
-              label: const Text('Sign Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.red),
+            // Recalculate standing button
+            ElevatedButton.icon(
+              onPressed: _isRecalculating ? null : _recalculateAll,
+              icon: const Icon(Icons.sync),
+              label: _isRecalculating
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Recalculate All Semesters & CGPA'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

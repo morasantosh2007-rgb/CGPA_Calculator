@@ -7,9 +7,10 @@ from .models import GradeSheet, OCRExtraction, OCRField
 from .serializers import GradeSheetSerializer, GradeSheetUploadSerializer
 from apps.processing.models import ProcessingJob
 from services.document.ingestion_service import IngestionService
+from apps.students.utils import get_active_student_profile
 
 class GradeSheetUploadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
@@ -18,7 +19,7 @@ class GradeSheetUploadView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         uploaded_file = serializer.validated_data['file']
-        student_profile = request.user.student_profile
+        student_profile = get_active_student_profile(request)
 
         # Compute SHA-256 Hash
         hasher = hashlib.sha256()
@@ -78,38 +79,41 @@ class GradeSheetUploadView(APIView):
             return Response({'error': str(e), 'job_id': str(job.id)}, status=status.HTTP_400_BAD_REQUEST)
 
 class GradeSheetListView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        sheets = GradeSheet.objects.filter(student=request.user.student_profile)
+        profile = get_active_student_profile(request)
+        sheets = GradeSheet.objects.filter(student=profile)
         serializer = GradeSheetSerializer(sheets, many=True)
         return Response(serializer.data)
 
 class GradeSheetDetailView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request, pk):
+        profile = get_active_student_profile(request)
         try:
-            sheet = GradeSheet.objects.get(pk=pk, student=request.user.student_profile)
+            sheet = GradeSheet.objects.get(pk=pk, student=profile)
             return Response(GradeSheetSerializer(sheet).data)
         except GradeSheet.DoesNotExist:
             return Response({'error': 'Grade sheet not found'}, status=status.HTTP_404_NOT_FOUND)
 
     def delete(self, request, pk):
+        profile = get_active_student_profile(request)
         try:
-            sheet = GradeSheet.objects.get(pk=pk, student=request.user.student_profile)
+            sheet = GradeSheet.objects.get(pk=pk, student=profile)
             sheet.delete()
             return Response({'message': 'Grade sheet deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
         except GradeSheet.DoesNotExist:
             return Response({'error': 'Grade sheet not found'}, status=status.HTTP_404_NOT_FOUND)
 
 class GradeSheetVerifyView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request, pk):
-        """Confirm or edit extracted fields, triggering attempt reconciliation and recalculation."""
+        profile = get_active_student_profile(request)
         try:
-            sheet = GradeSheet.objects.get(pk=pk, student=request.user.student_profile)
+            sheet = GradeSheet.objects.get(pk=pk, student=profile)
         except GradeSheet.DoesNotExist:
             return Response({'error': 'Grade sheet not found'}, status=status.HTTP_404_NOT_FOUND)
 

@@ -4,24 +4,27 @@ from rest_framework.response import Response
 from .models import Subject, SubjectAttempt, EffectiveSubjectResult
 from .serializers import SubjectSerializer, SubjectAttemptSerializer, EffectiveSubjectResultSerializer
 from services.calculation.engine import CalculationEngine
+from apps.students.utils import get_active_student_profile
 
 class SubjectViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     serializer_class = SubjectSerializer
 
     def get_queryset(self):
+        profile = get_active_student_profile(self.request)
         return Subject.objects.filter(
-            student__user=self.request.user
+            student=profile
         ).prefetch_related('attempts', 'attempts__academic_attempt')
 
 class SubjectAttemptUpdateView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def patch(self, request, pk):
+        profile = get_active_student_profile(request)
         try:
             attempt = SubjectAttempt.objects.get(
                 pk=pk,
-                subject__student__user=request.user
+                subject__student=profile
             )
         except SubjectAttempt.DoesNotExist:
             return Response({'error': 'Subject attempt not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -35,8 +38,7 @@ class SubjectAttemptUpdateView(APIView):
             attempt.user_corrected = True
             
             # Map grade point from grading system
-            student_profile = request.user.student_profile
-            rule = student_profile.grading_system.rules.filter(grade=attempt.normalized_grade).first()
+            rule = profile.grading_system.rules.filter(grade=attempt.normalized_grade).first() if profile.grading_system else None
             if rule:
                 attempt.grade_point = rule.grade_point
                 attempt.is_pass = rule.is_pass
@@ -52,6 +54,6 @@ class SubjectAttemptUpdateView(APIView):
         # Recalculate semester and cumulative standing
         semester = attempt.academic_attempt.semester
         CalculationEngine.reconcile_semester(semester)
-        CalculationEngine.calculate_academic_summary(request.user.student_profile)
+        CalculationEngine.calculate_academic_summary(profile)
 
         return Response(SubjectAttemptSerializer(attempt).data)
