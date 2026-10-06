@@ -47,8 +47,14 @@ class AttemptReconciler:
             
             # Map rule
             rule = grading_rules.get(norm_grade)
-            gp = rule.grade_point if rule else Decimal('0.00')
-            is_pass = rule.is_pass if rule else (norm_grade != 'F')
+            if rule:
+                gp = rule.grade_point
+                is_pass = rule.is_pass
+            else:
+                from services.extraction.table_extractor import TableExtractor
+                fallback_val = item.get('grade_point', TableExtractor.VALID_GRADES.get(norm_grade, 0.0))
+                gp = Decimal(str(fallback_val))
+                is_pass = norm_grade != 'F'
 
             # Match or create Subject
             existing_subjects = Subject.objects.filter(student=student)

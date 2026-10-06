@@ -30,11 +30,44 @@ class GradeSheetUploadView(APIView):
         # Duplicate check per student
         existing = GradeSheet.objects.filter(student=student_profile, file_hash=file_hash).first()
         if existing:
-            return Response({
-                'message': 'This grade sheet has already been uploaded.',
-                'gradesheet': GradeSheetSerializer(existing).data,
-                'is_duplicate': True
-            }, status=status.HTTP_200_OK)
+            extraction = getattr(existing, 'ocr_extraction', None)
+            extracted_data = extraction.extracted_data if extraction else {}
+            blocks = extracted_data.get('semester_blocks', [])
+            if blocks and len(blocks) > 0:
+                summary = {
+                    'document_type': existing.document_type,
+                    'is_multi_semester': extracted_data.get('is_multi_semester', len(blocks) > 1),
+                    'semester_blocks': blocks,
+                    'total_semesters_detected': len(blocks),
+                    'semester': existing.detected_semester,
+                    'exam_type': existing.detected_exam_type,
+                    'subjects_count': len(extracted_data.get('subjects', [])),
+                    'subjects': extracted_data.get('subjects', []),
+                    'student_match': existing.student_match_verified,
+                    'student_name': existing.extracted_student_name,
+                    'registration_number': existing.extracted_reg_no,
+                }
+                return Response({
+                    'message': 'This grade sheet has already been uploaded and parsed.',
+                    'gradesheet': GradeSheetSerializer(existing).data,
+                    'status': existing.upload_status,
+                    'extracted_summary': summary,
+                    'is_duplicate': True
+                }, status=status.HTTP_200_OK)
+            else:
+                # Reprocess existing
+                result = IngestionService.process_gradesheet(
+                    gradesheet=existing,
+                    custom_semester=serializer.validated_data.get('custom_semester'),
+                    custom_exam_type=serializer.validated_data.get('custom_exam_type')
+                )
+                return Response({
+                    'message': 'Grade sheet parsed successfully.',
+                    'gradesheet': GradeSheetSerializer(existing).data,
+                    'status': existing.upload_status,
+                    'extracted_summary': result,
+                    'is_duplicate': False
+                }, status=status.HTTP_200_OK)
 
         # Create GradeSheet
         gradesheet = GradeSheet.objects.create(

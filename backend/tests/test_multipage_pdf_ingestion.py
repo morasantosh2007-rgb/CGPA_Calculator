@@ -142,3 +142,45 @@ class MultiPagePDFIngestionTestCase(TestCase):
         self.assertEqual(float(summary.total_credits_completed), 24.0)
         self.assertEqual(summary.active_backlogs_count, 0)
         self.assertEqual(float(summary.cgpa), 8.83)
+
+    def test_real_scanned_multipage_pdf_with_rapidocr(self):
+        """
+        Tests end-to-end OCR extraction and reconciliation on the user's real 5-page PDF:
+        - 4 semesters of engineering coursework + 1 revaluation notice
+        - Automatic watermark removal on high-res scanned sheets
+        - Dark-mode screenshot contrast inversion
+        - Revaluation reconciliation of CS2072 from Grade F to Grade C
+        """
+        import os
+        real_pdf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'media', 'gradesheets', '2026', '10', 'gradesheets.pdf')
+        if not os.path.exists(real_pdf_path):
+            self.skipTest("Real PDF not found at media/gradesheets/2026/10/gradesheets.pdf")
+
+        with open(real_pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
+        uploaded_file = SimpleUploadedFile(
+            name="gradesheets.pdf",
+            content=pdf_bytes,
+            content_type="application/pdf"
+        )
+
+        gradesheet = GradeSheet.objects.create(
+            student=self.student,
+            original_filename="gradesheets.pdf",
+            file=uploaded_file,
+            file_hash="real_gradesheet_hash_test"
+        )
+
+        result = IngestionService.process_gradesheet(gradesheet)
+
+        self.assertTrue(result['is_multi_semester'])
+        self.assertEqual(result['total_semesters_detected'], 5)
+        self.assertEqual(result['subjects_count'], 38)
+        self.assertTrue(result['student_match'])
+
+        # Verify summary
+        summary = CalculationEngine.calculate_academic_summary(self.student)
+        self.assertEqual(summary.active_backlogs_count, 0)
+        self.assertEqual(float(summary.total_credits_completed), 77.0)
+        self.assertGreaterEqual(float(summary.cgpa), 7.0)

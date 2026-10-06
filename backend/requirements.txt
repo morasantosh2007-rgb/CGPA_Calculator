@@ -13,3 +13,5 @@ python-dotenv>=1.0.0
 requests>=2.31.0
 pytest>=8.0.0
 pytest-django>=4.8.0
+rapidocr-onnxruntime>=1.2.0
+onnxruntime>=1.16.0
