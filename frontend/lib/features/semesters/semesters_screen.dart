@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/utils/file_download_helper.dart';
 import '../../models/semester_model.dart';
 import 'semester_detail_screen.dart';
 
@@ -37,6 +38,13 @@ class _SemestersScreenState extends State<SemestersScreen> {
     }
   }
 
+  Future<void> _downloadTranscriptPdf() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Downloading official verified transcript PDF...')),
+    );
+    await FileDownloadHelper.openOrDownloadUrl(ApiConstants.exportPdf);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -45,6 +53,11 @@ class _SemestersScreenState extends State<SemestersScreen> {
       appBar: AppBar(
         title: const Text('Semesters & Attempts', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Download Official Transcript PDF',
+            onPressed: _downloadTranscriptPdf,
+          ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchSemesters),
         ],
       ),

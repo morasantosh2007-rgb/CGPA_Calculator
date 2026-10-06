@@ -3,17 +3,32 @@ from .models import Semester, AcademicAttempt
 
 class AcademicAttemptSerializer(serializers.ModelSerializer):
     subject_attempts_count = serializers.SerializerMethodField()
+    gradesheet_file_url = serializers.SerializerMethodField()
+    gradesheet_filename = serializers.SerializerMethodField()
 
     class Meta:
         model = AcademicAttempt
         fields = (
             'id', 'semester', 'attempt_number', 'exam_type',
             'raw_exam_type', 'academic_session', 'exam_date',
-            'is_verified', 'created_at', 'subject_attempts_count'
+            'is_verified', 'created_at', 'subject_attempts_count',
+            'gradesheet_file_url', 'gradesheet_filename'
         )
 
     def get_subject_attempts_count(self, obj):
         return obj.subject_attempts.count()
+
+    def get_gradesheet_file_url(self, obj):
+        sheet = obj.gradesheets.first()
+        if sheet and sheet.file:
+            return sheet.file.url
+        return None
+
+    def get_gradesheet_filename(self, obj):
+        sheet = obj.gradesheets.first()
+        if sheet:
+            return sheet.original_filename
+        return None
 
 class SemesterSerializer(serializers.ModelSerializer):
     attempts = AcademicAttemptSerializer(many=True, read_only=True)

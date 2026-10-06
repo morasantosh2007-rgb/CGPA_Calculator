@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +6,29 @@ import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../verification/verification_screen.dart';
+
+/// Representation of a document selected for ingestion across Web, Desktop, and Mobile.
+class UploadItem {
+  final String name;
+  final int size;
+  final Uint8List? bytes;
+  final String? path;
+
+  UploadItem({
+    required this.name,
+    required this.size,
+    this.bytes,
+    this.path,
+  });
+
+  bool get isPdf => name.toLowerCase().endsWith('.pdf');
+
+  String get formattedSize {
+    if (size < 1024) return '$size B';
+    if (size < 1024 * 1024) return '${(size / 1024).toStringAsFixed(1)} KB';
+    return '${(size / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+}
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -16,34 +39,67 @@ class UploadScreen extends StatefulWidget {
 
 class _UploadScreenState extends State<UploadScreen> {
   final ImagePicker _picker = ImagePicker();
-  final List<File> _selectedFiles = [];
+  final List<UploadItem> _selectedFiles = [];
   bool _isUploading = false;
   String _uploadStatusMessage = '';
+  double _uploadProgress = 0.0;
 
   Future<void> _pickImage(ImageSource source) async {
-    final picked = await _picker.pickImage(source: source);
-    if (picked != null) {
-      setState(() {
-        _selectedFiles.add(File(picked.path));
-      });
+    try {
+      final picked = await _picker.pickImage(source: source);
+      if (picked != null) {
+        final bytes = await picked.readAsBytes();
+        setState(() {
+          _selectedFiles.add(UploadItem(
+            name: picked.name,
+            size: bytes.length,
+            bytes: bytes,
+            path: picked.path,
+          ));
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load image: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   Future<void> _pickFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-    );
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+        withData: true, // Crucial for Flutter Web and cross-platform byte access
+      );
 
-    if (result != null) {
-      setState(() {
-        for (var path in result.paths) {
-          if (path != null) {
-            _selectedFiles.add(File(path));
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          for (final f in result.files) {
+            // Avoid adding duplicates by name and size
+            final isDuplicate = _selectedFiles.any(
+              (item) => item.name == f.name && item.size == f.size,
+            );
+            if (!isDuplicate) {
+              _selectedFiles.add(UploadItem(
+                name: f.name,
+                size: f.size,
+                bytes: f.bytes,
+                path: f.path,
+              ));
+            }
           }
-        }
-      });
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error picking files: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -52,23 +108,53 @@ class _UploadScreenState extends State<UploadScreen> {
 
     setState(() {
       _isUploading = true;
+      _uploadProgress = 0.1;
       _uploadStatusMessage = 'Uploading grade sheet...';
     });
 
     try {
-      final file = _selectedFiles.first;
-      final fileName = file.path.split(Platform.pathSeparator).last;
+      final item = _selectedFiles.first;
+
+      MultipartFile multipartFile;
+      if (item.bytes != null) {
+        multipartFile = MultipartFile.fromBytes(
+          item.bytes!,
+          filename: item.name,
+        );
+      } else if (item.path != null) {
+        multipartFile = await MultipartFile.fromFile(
+          item.path!,
+          filename: item.name,
+        );
+      } else {
+        throw Exception('Selected file contains no readable data.');
+      }
 
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(file.path, filename: fileName),
+        'file': multipartFile,
       });
 
-      setState(() => _uploadStatusMessage = 'Reading document and analyzing header...');
+      setState(() {
+        _uploadProgress = 0.45;
+        _uploadStatusMessage = 'Reading document structure and heading metadata...';
+      });
 
       final response = await ApiClient.dio.post(
         ApiConstants.uploadGradeSheet,
         data: formData,
+        onSendProgress: (sent, total) {
+          if (total > 0 && mounted) {
+            setState(() {
+              _uploadProgress = 0.2 + (sent / total) * 0.3;
+            });
+          }
+        },
       );
+
+      setState(() {
+        _uploadProgress = 0.85;
+        _uploadStatusMessage = 'Extracting subjects, credits, and grades...';
+      });
 
       final sheetData = response.data['gradesheet'] ?? response.data;
       final summary = response.data['extracted_summary'] ?? {};
@@ -89,10 +175,12 @@ class _UploadScreenState extends State<UploadScreen> {
       }
     } on DioException catch (e) {
       if (mounted) {
+        final errorMsg = e.response?.data?['error'] ?? 'Upload failed. Please check the document format.';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.response?.data?['error'] ?? 'Upload failed. Check file format.'),
+            content: Text(errorMsg),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -103,7 +191,12 @@ class _UploadScreenState extends State<UploadScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isUploading = false);
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadProgress = 0.0;
+        });
+      }
     }
   }
 
@@ -134,7 +227,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Upload photos, scans, or PDFs. GradeLens automatically reads the headings, detects the semester & exam type (Regular/Supplementary), and links backlog results.',
+                      'Upload PDFs, photos, or scanned grade sheets. GradeLens automatically reads header metadata, identifies the semester and attempt type (Regular/Supplementary), and links backlog results.',
                       style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF1E3A8A)),
                     ),
                   ),
@@ -175,28 +268,52 @@ class _UploadScreenState extends State<UploadScreen> {
 
             const SizedBox(height: 28),
 
-            // Queue List
-            Text(
-              'Selected Documents (${_selectedFiles.length})',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            // Queue List Header
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Selected Documents (${_selectedFiles.length})',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                if (_selectedFiles.isNotEmpty && !_isUploading)
+                  TextButton.icon(
+                    onPressed: () => setState(() => _selectedFiles.clear()),
+                    icon: const Icon(Icons.clear_all, size: 18, color: Colors.grey),
+                    label: const Text('Clear All', style: TextStyle(color: Colors.grey)),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
 
             if (_selectedFiles.isEmpty)
-              Container(
-                height: 160,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.withOpacity(0.3), style: BorderStyle.solid),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cloud_upload_outlined, size: 40, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text('No files selected yet', style: TextStyle(color: Colors.grey[600])),
-                    ],
+              InkWell(
+                onTap: _pickFiles,
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  height: 170,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.04),
+                    border: Border.all(color: Colors.grey.withOpacity(0.25), style: BorderStyle.solid),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.cloud_upload_outlined, size: 44, color: theme.colorScheme.primary.withOpacity(0.6)),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Click to select PDF or image grade sheets',
+                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Supports PDF, JPG, PNG from device or portal downloads',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               )
@@ -207,22 +324,43 @@ class _UploadScreenState extends State<UploadScreen> {
                 itemCount: _selectedFiles.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final file = _selectedFiles[index];
-                  final name = file.path.split(Platform.pathSeparator).last;
+                  final fileItem = _selectedFiles[index];
                   return Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
-                      leading: Icon(
-                        name.endsWith('.pdf') ? Icons.picture_as_pdf : Icons.image,
-                        color: theme.colorScheme.primary,
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: fileItem.isPdf ? const Color(0xFFFEE2E2) : const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          fileItem.isPdf ? Icons.picture_as_pdf : Icons.image,
+                          color: fileItem.isPdf ? const Color(0xFFDC2626) : const Color(0xFF2563EB),
+                          size: 24,
+                        ),
                       ),
-                      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        fileItem.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        '${fileItem.formattedSize} • Ready for analysis',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        onPressed: () {
-                          setState(() {
-                            _selectedFiles.removeAt(index);
-                          });
-                        },
+                        tooltip: 'Remove',
+                        onPressed: _isUploading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _selectedFiles.removeAt(index);
+                                });
+                              },
                       ),
                     ),
                   );
@@ -235,24 +373,37 @@ class _UploadScreenState extends State<UploadScreen> {
               Center(
                 child: Column(
                   children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 12),
-                    Text(_uploadStatusMessage, style: const TextStyle(fontWeight: FontWeight.w500)),
+                    LinearProgressIndicator(value: _uploadProgress, minHeight: 6),
+                    const SizedBox(height: 14),
+                    Text(
+                      _uploadStatusMessage,
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E3A8A)),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
             ],
 
-            ElevatedButton(
+            ElevatedButton.icon(
               onPressed: _selectedFiles.isEmpty || _isUploading ? null : _uploadAndProcess,
+              icon: _isUploading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.document_scanner_outlined),
+              label: Text(
+                _isUploading ? 'Analyzing Document...' : 'Start Document Intelligence & OCR',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: theme.colorScheme.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
-              child: const Text('Start Document Intelligence & OCR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             ),
           ],
         ),
@@ -274,6 +425,13 @@ class _UploadScreenState extends State<UploadScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            )
+          ],
         ),
         child: Column(
           children: [

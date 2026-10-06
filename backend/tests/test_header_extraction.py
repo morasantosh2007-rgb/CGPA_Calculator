@@ -51,3 +51,33 @@ class HeaderAndTableExtractionTestCase(TestCase):
         self.assertEqual(subjects[2]['normalized_grade'], "EX")
         self.assertEqual(subjects[3]['normalized_grade'], "M")
         self.assertEqual(subjects[3]['grade_point'], 4.0)
+
+    def test_pdf_extraction_and_student_metadata(self):
+        import io
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+        from services.ocr.provider import DigitalPDFProvider
+
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=letter)
+        c.drawString(100, 750, "JAWAHARLAL NEHRU TECHNOLOGICAL UNIVERSITY")
+        c.drawString(100, 730, "SEMESTER III REGULAR EXAMINATION RESULT")
+        c.drawString(100, 710, "STUDENT NAME: SANTOSH MORA   HTNO: 20A91A0501")
+        c.drawString(100, 680, "SUBCODE  SUBNAME        CREDITS  GRADE")
+        c.drawString(100, 660, "CS301    DATA STRUCTURES   4       A")
+        c.drawString(100, 640, "CS302    DIGITAL LOGIC     3       B")
+        c.save()
+
+        buf.seek(0)
+        pdf_provider = DigitalPDFProvider()
+        text = pdf_provider.extract_text(buf)
+
+        self.assertIn("DATA STRUCTURES", text)
+        self.assertIn("SEMESTER III", text)
+
+        meta = HeaderDetector.extract_header_metadata(text)
+        self.assertEqual(meta['semester'], 3)
+        self.assertEqual(meta['exam_type'], 'REGULAR')
+        self.assertEqual(meta['registration_number'], '20A91A0501')
+        self.assertEqual(meta['student_name'], 'SANTOSH MORA')
+        self.assertIn('TECHNOLOGICAL UNIVERSITY', meta['institution'])

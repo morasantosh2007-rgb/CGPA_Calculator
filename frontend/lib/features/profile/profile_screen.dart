@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/utils/file_download_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -29,6 +30,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Handle error
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _downloadTranscriptPdf() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Downloading official verified transcript PDF...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    final success = await FileDownloadHelper.openOrDownloadUrl(ApiConstants.exportPdf);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open download link. Check server connection.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadAuditJson() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Exporting audit trail JSON...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    final success = await FileDownloadHelper.openOrDownloadUrl(ApiConstants.exportJson);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open audit export link.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -142,7 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text('Reconciliation Policy', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Card(
-              child: const Padding(
+              child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +195,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
+
+            // Official Reports & Exports
+            Text('Official Documents & Exports', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEE2E2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626)),
+                      ),
+                      title: const Text('Official Transcript PDF', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('Verified consolidated grade card with institutional metadata', style: TextStyle(fontSize: 12)),
+                      trailing: ElevatedButton.icon(
+                        onPressed: _downloadTranscriptPdf,
+                        icon: const Icon(Icons.download, size: 16),
+                        label: const Text('Download'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFDC2626),
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDBEAFE),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.code, color: Color(0xFF2563EB)),
+                      ),
+                      title: const Text('Academic Audit Trail (JSON)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: const Text('Machine-readable raw audit logs and attempt histories', style: TextStyle(fontSize: 12)),
+                      trailing: OutlinedButton.icon(
+                        onPressed: _downloadAuditJson,
+                        icon: const Icon(Icons.file_download_outlined, size: 16),
+                        label: const Text('Export'),
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
 
             // Recalculate standing button
             ElevatedButton.icon(

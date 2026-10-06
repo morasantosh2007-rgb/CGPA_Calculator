@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/utils/file_download_helper.dart';
 
 class SemesterDetailScreen extends StatefulWidget {
   final String semesterId;
@@ -153,6 +154,35 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                         'Subjects recorded in this sitting: ${att['subject_attempts_count']}',
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                       ),
+                      if (att['gradesheet_file_url'] != null) ...[
+                        const SizedBox(height: 10),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            final rawUrl = att['gradesheet_file_url'] as String;
+                            final fullUrl = rawUrl.startsWith('http')
+                                ? rawUrl
+                                : 'http://127.0.0.1:8000$rawUrl';
+                            FileDownloadHelper.openOrDownloadUrl(fullUrl);
+                          },
+                          icon: Icon(
+                            (att['gradesheet_filename'] ?? '').toString().toLowerCase().endsWith('.pdf')
+                                ? Icons.picture_as_pdf
+                                : Icons.image,
+                            size: 16,
+                            color: (att['gradesheet_filename'] ?? '').toString().toLowerCase().endsWith('.pdf')
+                                ? Colors.red
+                                : theme.colorScheme.primary,
+                          ),
+                          label: Text(
+                            'View / Download Document (${att['gradesheet_filename'] ?? 'File'})',
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

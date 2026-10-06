@@ -48,15 +48,31 @@ class TesseractOCRProvider(OCRProvider):
         except Exception:
             return {}
 
+import io
+
 class DigitalPDFProvider(OCRProvider):
-    """Extracts text streams and layout from digital PDFs."""
-    def extract_text(self, pdf_path):
+    """Extracts text streams and layout from digital PDFs, with embedded image fallback."""
+    def extract_text(self, pdf_path, tesseract_provider=None):
         try:
             reader = pypdf.PdfReader(pdf_path)
             full_text = []
             for page_idx, page in enumerate(reader.pages):
-                txt = page.extract_text() or ""
-                full_text.append(f"--- PAGE {page_idx + 1} ---\n" + txt)
+                txt = (page.extract_text() or "").strip()
+                if txt:
+                    full_text.append(f"--- PAGE {page_idx + 1} ---\n" + txt)
+                elif tesseract_provider and hasattr(page, 'images') and page.images:
+                    img_texts = []
+                    for img_obj in page.images:
+                        try:
+                            pil_img = Image.open(io.BytesIO(img_obj.data))
+                            img_txt = tesseract_provider.extract_text(pil_img)
+                            if img_txt and img_txt.strip():
+                                img_texts.append(img_txt.strip())
+                        except Exception:
+                            continue
+                    if img_texts:
+                        full_text.append(f"--- PAGE {page_idx + 1} (OCR) ---\n" + "\n".join(img_texts))
+
             return "\n".join(full_text)
         except Exception as e:
             return ""
@@ -65,8 +81,9 @@ class HybridOCRProvider(OCRProvider):
     """
     Intelligent Hybrid OCR Engine:
     1. If file is a digital PDF with embedded text, extract high-fidelity text streams.
-    2. If image and Tesseract is present, run Tesseract.
-    3. Fallback to resilient parser with confidence estimation.
+    2. If scanned PDF, extract embedded images and process with OCR.
+    3. If image and Tesseract is present, run Tesseract.
+    4. Fallback gracefully with confidence estimation.
     """
     def __init__(self):
         self.pdf_provider = DigitalPDFProvider()
@@ -78,13 +95,24 @@ class HybridOCRProvider(OCRProvider):
     def extract_document(self, file_path):
         ext = os.path.splitext(file_path)[-1].lower()
         if ext == '.pdf':
-            pdf_text = self.pdf_provider.extract_text(file_path)
+            pdf_text = self.pdf_provider.extract_text(file_path, tesseract_provider=self.tesseract_provider)
             if len(pdf_text.strip()) > 30:
                 return {
                     'text': pdf_text,
                     'provider': 'DigitalPDFProvider',
                     'confidence': 0.98
                 }
+            elif len(pdf_text.strip()) > 0:
+                return {
+                    'text': pdf_text,
+                    'provider': 'PDFScannedOCRProvider',
+                    'confidence': 0.85
+                }
+            return {
+                'text': "",
+                'provider': 'PDFProvider',
+                'confidence': 0.50
+            }
 
         # Image processing
         if self.tesseract_provider:

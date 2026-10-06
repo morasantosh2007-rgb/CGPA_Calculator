@@ -120,13 +120,19 @@ class HeaderDetector:
                 metadata['exam_type_confidence'] = 0.95
                 break
 
-        # 3. Registration / Roll Number
-        reg_match = re.search(r"(?:REG(?:ISTRATION)?\.?\s*(?:NO|NUMBER)?|ROLL\s*(?:NO|NUMBER)?|HT\s*NO)[\s\-:]+([A-Z0-9]{6,15})\b", upper_text)
+        # 3. Registration / Roll Number / Hall Ticket Number
+        reg_match = re.search(
+            r"(?:REG(?:ISTRATION)?\.?\s*(?:NO|NUMBER)?|ROLL\s*(?:NO|NUMBER)?|HT\s*NO|HTNO|PIN|ENROLLMENT(?:\s*NO)?)[\s\-:]+([A-Z0-9]{6,18})\b",
+            upper_text
+        )
         if reg_match:
-            metadata['registration_number'] = reg_match.group(1)
+            metadata['registration_number'] = reg_match.group(1).strip()
 
-        # 4. Student Name
-        name_match = re.search(r"(?:STUDENT|CANDIDATE)?\s*NAME[\s\-:]+([A-Z\s\.]{3,50})(?:\n|\r|REG|ROLL|FATHER|BRANCH)", upper_text)
+        # 4. Student Name (stops before multiple spaces, newline, or next header field)
+        name_match = re.search(
+            r"(?:STUDENT|CANDIDATE)?\s*NAME[\s\-:]+([A-Z\s\.]{3,50}?)(?:\s{2,}|\n|\r|REG|ROLL|HT|HALL|PIN|ENROLLMENT|FATHER|BRANCH|$)",
+            upper_text
+        )
         if name_match:
             metadata['student_name'] = name_match.group(1).strip()
 
@@ -134,5 +140,13 @@ class HeaderDetector:
         session_match = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*[\s\-,]+(20\d{2})\b", upper_text)
         if session_match:
             metadata['session'] = f"{session_match.group(1)} {session_match.group(2)}"
+
+        # 6. Institution Name
+        for line in upper_text.split('\n')[:8]:
+            line_str = line.strip()
+            if any(kw in line_str for kw in ["UNIVERSITY", "COLLEGE", "INSTITUTE", "TECHNOLOGICAL"]):
+                if not any(ign in line_str for ign in ["SEMESTER", "EXAMINATION", "RESULT", "GRADE SHEET", "STATEMENT OF MARKS"]):
+                    metadata['institution'] = line_str
+                    break
 
         return metadata

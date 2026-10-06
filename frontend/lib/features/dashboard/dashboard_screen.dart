@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/file_download_helper.dart';
 import '../../models/academic_summary.dart';
 import '../../models/semester_model.dart';
 import '../upload/upload_screen.dart';
@@ -44,6 +45,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _downloadTranscriptPdf() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Downloading official verified transcript PDF...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    final success = await FileDownloadHelper.openOrDownloadUrl(ApiConstants.exportPdf);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open download link. Please check server.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadAuditJson() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Exporting academic audit trail JSON...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    final success = await FileDownloadHelper.openOrDownloadUrl(ApiConstants.exportJson);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open audit export link.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -63,6 +100,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('GradeLens Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: _downloadTranscriptPdf,
+            tooltip: 'Download Official Transcript PDF',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _fetchDashboardData,
@@ -266,6 +308,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // 5. Official Reports & PDF Downloads Card
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.verified_outlined, color: theme.colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Official Academic Documents',
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Download your official institutional transcript PDF or export the complete academic audit trail with OCR verification metadata.',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _downloadTranscriptPdf,
+                              icon: const Icon(Icons.picture_as_pdf, color: Color(0xFFDC2626)),
+                              label: const Text('Download PDF'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _downloadAuditJson,
+                              icon: const Icon(Icons.code, color: Color(0xFF2563EB)),
+                              label: const Text('Export JSON'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
