@@ -52,15 +52,13 @@ import io
 
 class DigitalPDFProvider(OCRProvider):
     """Extracts text streams and layout from digital PDFs, with embedded image fallback."""
-    def extract_text(self, pdf_path, tesseract_provider=None):
+    def extract_pages(self, pdf_path, tesseract_provider=None):
         try:
             reader = pypdf.PdfReader(pdf_path)
-            full_text = []
+            pages = []
             for page_idx, page in enumerate(reader.pages):
                 txt = (page.extract_text() or "").strip()
-                if txt:
-                    full_text.append(f"--- PAGE {page_idx + 1} ---\n" + txt)
-                elif tesseract_provider and hasattr(page, 'images') and page.images:
+                if not txt and tesseract_provider and hasattr(page, 'images') and page.images:
                     img_texts = []
                     for img_obj in page.images:
                         try:
@@ -70,17 +68,28 @@ class DigitalPDFProvider(OCRProvider):
                                 img_texts.append(img_txt.strip())
                         except Exception:
                             continue
-                    if img_texts:
-                        full_text.append(f"--- PAGE {page_idx + 1} (OCR) ---\n" + "\n".join(img_texts))
+                    txt = "\n".join(img_texts).strip()
 
-            return "\n".join(full_text)
-        except Exception as e:
-            return ""
+                pages.append({
+                    'page_number': page_idx + 1,
+                    'text': txt
+                })
+            return pages
+        except Exception:
+            return []
+
+    def extract_text(self, pdf_path, tesseract_provider=None):
+        pages = self.extract_pages(pdf_path, tesseract_provider)
+        full_text = []
+        for p in pages:
+            if p['text']:
+                full_text.append(f"--- PAGE {p['page_number']} ---\n{p['text']}")
+        return "\n\n".join(full_text)
 
 class HybridOCRProvider(OCRProvider):
     """
     Intelligent Hybrid OCR Engine:
-    1. If file is a digital PDF with embedded text, extract high-fidelity text streams.
+    1. If file is a digital PDF with embedded text, extract high-fidelity text streams per page.
     2. If scanned PDF, extract embedded images and process with OCR.
     3. If image and Tesseract is present, run Tesseract.
     4. Fallback gracefully with confidence estimation.
@@ -95,21 +104,25 @@ class HybridOCRProvider(OCRProvider):
     def extract_document(self, file_path):
         ext = os.path.splitext(file_path)[-1].lower()
         if ext == '.pdf':
-            pdf_text = self.pdf_provider.extract_text(file_path, tesseract_provider=self.tesseract_provider)
+            pages_data = self.pdf_provider.extract_pages(file_path, tesseract_provider=self.tesseract_provider)
+            pdf_text = "\n\n".join([f"--- PAGE {p['page_number']} ---\n{p['text']}" for p in pages_data if p['text']])
             if len(pdf_text.strip()) > 30:
                 return {
                     'text': pdf_text,
+                    'pages': pages_data,
                     'provider': 'DigitalPDFProvider',
                     'confidence': 0.98
                 }
             elif len(pdf_text.strip()) > 0:
                 return {
                     'text': pdf_text,
+                    'pages': pages_data,
                     'provider': 'PDFScannedOCRProvider',
                     'confidence': 0.85
                 }
             return {
                 'text': "",
+                'pages': [],
                 'provider': 'PDFProvider',
                 'confidence': 0.50
             }

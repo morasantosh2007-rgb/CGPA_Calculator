@@ -118,24 +118,55 @@ class GradeSheetVerifyView(APIView):
             return Response({'error': 'Grade sheet not found'}, status=status.HTTP_404_NOT_FOUND)
 
         payload = request.data
-        verified_subjects = payload.get('subjects', [])
-        verified_semester = payload.get('semester', sheet.detected_semester)
-        verified_exam_type = payload.get('exam_type', sheet.detected_exam_type)
+        semester_blocks = payload.get('semester_blocks')
 
         from services.matching.reconciler import AttemptReconciler
-        reconciled = AttemptReconciler.commit_verified_attempt(
-            gradesheet=sheet,
-            semester_num=int(verified_semester or 1),
-            exam_type=verified_exam_type or 'REGULAR',
-            subjects_data=verified_subjects
-        )
 
-        sheet.upload_status = 'VERIFIED'
-        sheet.save()
+        if semester_blocks and isinstance(semester_blocks, list) and len(semester_blocks) > 0:
+            reconciled_attempts = []
+            for block in semester_blocks:
+                sem_num = int(block.get('semester') or 1)
+                exam_type = block.get('exam_type') or 'REGULAR'
+                subs = block.get('subjects', [])
+                if subs:
+                    rec = AttemptReconciler.commit_verified_attempt(
+                        gradesheet=sheet,
+                        semester_num=sem_num,
+                        exam_type=exam_type,
+                        subjects_data=subs
+                    )
+                    reconciled_attempts.append(rec)
 
-        return Response({
-            'message': 'Attempt verified and academic standing recalculated.',
-            'semester': reconciled['semester_id'],
-            'sgpa': reconciled['sgpa'],
-            'cgpa': reconciled['cgpa']
-        }, status=status.HTTP_200_OK)
+            sheet.upload_status = 'VERIFIED'
+            sheet.save()
+
+            from services.calculation.engine import CalculationEngine
+            summary = CalculationEngine.calculate_academic_summary(profile)
+
+            return Response({
+                'message': f"Verified {len(reconciled_attempts)} semester attempt(s) successfully.",
+                'attempts_processed': len(reconciled_attempts),
+                'cgpa': float(summary.cgpa),
+                'reconciled': reconciled_attempts
+            }, status=status.HTTP_200_OK)
+        else:
+            verified_subjects = payload.get('subjects', [])
+            verified_semester = payload.get('semester', sheet.detected_semester)
+            verified_exam_type = payload.get('exam_type', sheet.detected_exam_type)
+
+            reconciled = AttemptReconciler.commit_verified_attempt(
+                gradesheet=sheet,
+                semester_num=int(verified_semester or 1),
+                exam_type=verified_exam_type or 'REGULAR',
+                subjects_data=verified_subjects
+            )
+
+            sheet.upload_status = 'VERIFIED'
+            sheet.save()
+
+            return Response({
+                'message': 'Attempt verified and academic standing recalculated.',
+                'semester': reconciled['semester_id'],
+                'sgpa': reconciled['sgpa'],
+                'cgpa': reconciled['cgpa']
+            }, status=status.HTTP_200_OK)

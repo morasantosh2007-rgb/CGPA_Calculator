@@ -12,13 +12,11 @@ class UploadItem {
   final String name;
   final int size;
   final Uint8List? bytes;
-  final String? path;
 
   UploadItem({
     required this.name,
     required this.size,
     this.bytes,
-    this.path,
   });
 
   bool get isPdf => name.toLowerCase().endsWith('.pdf');
@@ -54,7 +52,6 @@ class _UploadScreenState extends State<UploadScreen> {
             name: picked.name,
             size: bytes.length,
             bytes: bytes,
-            path: picked.path,
           ));
         });
       }
@@ -73,13 +70,12 @@ class _UploadScreenState extends State<UploadScreen> {
         allowMultiple: true,
         type: FileType.custom,
         allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-        withData: true, // Crucial for Flutter Web and cross-platform byte access
+        withData: true, // Always loads in-memory bytes across all platforms
       );
 
       if (result != null && result.files.isNotEmpty) {
         setState(() {
           for (final f in result.files) {
-            // Avoid adding duplicates by name and size
             final isDuplicate = _selectedFiles.any(
               (item) => item.name == f.name && item.size == f.size,
             );
@@ -88,7 +84,6 @@ class _UploadScreenState extends State<UploadScreen> {
                 name: f.name,
                 size: f.size,
                 bytes: f.bytes,
-                path: f.path,
               ));
             }
           }
@@ -115,20 +110,14 @@ class _UploadScreenState extends State<UploadScreen> {
     try {
       final item = _selectedFiles.first;
 
-      MultipartFile multipartFile;
-      if (item.bytes != null) {
-        multipartFile = MultipartFile.fromBytes(
-          item.bytes!,
-          filename: item.name,
-        );
-      } else if (item.path != null) {
-        multipartFile = await MultipartFile.fromFile(
-          item.path!,
-          filename: item.name,
-        );
-      } else {
-        throw Exception('Selected file contains no readable data.');
+      if (item.bytes == null || item.bytes!.isEmpty) {
+        throw Exception('Selected file "${item.name}" has no readable data.');
       }
+
+      final multipartFile = MultipartFile.fromBytes(
+        item.bytes!,
+        filename: item.name,
+      );
 
       final formData = FormData.fromMap({
         'file': multipartFile,
@@ -158,6 +147,7 @@ class _UploadScreenState extends State<UploadScreen> {
 
       final sheetData = response.data['gradesheet'] ?? response.data;
       final summary = response.data['extracted_summary'] ?? {};
+      final semesterBlocks = summary['semester_blocks'] as List? ?? [];
       final subjects = summary['subjects'] as List? ?? [];
 
       if (mounted) {
@@ -169,6 +159,7 @@ class _UploadScreenState extends State<UploadScreen> {
               detectedExamType: sheetData['detected_exam_type'] ?? 'REGULAR',
               rawSubjects: subjects,
               studentMatch: sheetData['student_match_verified'] ?? true,
+              semesterBlocks: semesterBlocks,
             ),
           ),
         );
