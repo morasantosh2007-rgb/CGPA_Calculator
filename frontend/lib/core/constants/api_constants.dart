@@ -9,6 +9,7 @@ class ApiConstants {
 
   // Students & Profile
   static const String profile = '$baseUrl/students/profile/';
+  static const String studentSetup = '$baseUrl/students/setup/';
   static const String universities = '$baseUrl/students/universities/';
 
   // Grading & Policies

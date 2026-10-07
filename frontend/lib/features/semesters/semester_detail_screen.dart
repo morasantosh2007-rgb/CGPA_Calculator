@@ -118,7 +118,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withOpacity(0.3),
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -142,7 +142,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -235,13 +235,13 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                 elevation: 0.5,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.grey.withOpacity(0.12)),
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.12)),
                 ),
                 child: ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: subjects.length,
-                  separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withOpacity(0.15)),
+                  separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withValues(alpha: 0.15)),
                   itemBuilder: (context, idx) {
                     final subj = subjects[idx];
                     final code = subj['subject_code'] ?? '';
@@ -258,9 +258,9 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: gradeColor.withOpacity(0.12),
+                          color: gradeColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: gradeColor.withOpacity(0.3)),
+                          border: Border.all(color: gradeColor.withValues(alpha: 0.3)),
                         ),
                         alignment: Alignment.center,
                         child: Text(
@@ -283,7 +283,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: Colors.grey.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -321,16 +321,18 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
 
             const SizedBox(height: 28),
 
-            // 3. Examination Attempts Timeline
+            // 3. Examination Attempts / Sittings
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Examination Attempts & Sittings (${_attempts.length})',
+                  _attempts.length > 1
+                      ? 'Examination Attempts (${_attempts.length})'
+                      : 'Examination Sitting',
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'Full Audit Trail',
+                  'Audit Record',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
@@ -342,7 +344,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                 elevation: 0.5,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(color: Colors.grey.withOpacity(0.12)),
+                  side: BorderSide(color: Colors.grey.withValues(alpha: 0.12)),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -369,7 +371,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                '${att['exam_type']} Examination (Attempt ${att['attempt_number']})',
+                                '${att['exam_type']} Examination',
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                             ],
@@ -390,7 +392,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                       const Divider(height: 1),
                       const SizedBox(height: 10),
                       Text(
-                        'Subjects recorded in this sitting: ${att['subject_attempts_count']}',
+                        'Subjects recorded: ${att['subject_attempts_count']}',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                       if (att['gradesheet_file_url'] != null) ...[

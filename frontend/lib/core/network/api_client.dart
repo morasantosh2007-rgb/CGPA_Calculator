@@ -20,6 +20,18 @@ class ApiClient {
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+
+          // Device & Client Isolation Header
+          final studentId = prefs.getString('student_id');
+          if (studentId != null && studentId.isNotEmpty) {
+            options.headers['X-Student-Id'] = studentId;
+          }
+
+          final regNo = prefs.getString('registration_number');
+          if (regNo != null && regNo.isNotEmpty) {
+            options.headers['X-Registration-Number'] = regNo;
+          }
+
           return handler.next(options);
         },
         onError: (DioException error, handler) async {
@@ -31,4 +43,33 @@ class ApiClient {
         },
       ),
     );
+
+  static Future<bool> hasCompletedSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final studentId = prefs.getString('student_id');
+    return studentId != null && studentId.isNotEmpty;
+  }
+
+  static Future<void> saveStudentSession({
+    required String studentId,
+    required String regNo,
+    required String fullName,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('student_id', studentId);
+    await prefs.setString('registration_number', regNo);
+    await prefs.setString('student_name', fullName);
+  }
+
+  static Future<void> clearStudentSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('student_id');
+    await prefs.remove('registration_number');
+    await prefs.remove('student_name');
+  }
+
+  static Future<String?> getActiveStudentId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('student_id');
+  }
 }

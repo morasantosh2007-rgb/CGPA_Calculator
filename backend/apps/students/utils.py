@@ -53,43 +53,78 @@ def ensure_default_grading_system():
 
 def get_active_student_profile(request=None):
     """
-    Seamless profile resolver:
-    1. If user is authenticated, retrieves or auto-initializes their StudentProfile.
-    2. If unauthenticated / direct access mode, retrieves or auto-creates the default student profile.
+    Seamless profile resolver supporting multi-device isolation:
+    1. Checks 'X-Student-Id' request header.
+    2. Checks 'X-Registration-Number' request header.
+    3. Checks request.user if authenticated.
+    4. Fallback to default student profile.
     Guarantees that `student_profile` always exists and never throws RelatedObjectDoesNotExist.
     """
     default_system, default_policy = ensure_default_grading_system()
 
-    if request and hasattr(request, 'user') and request.user and request.user.is_authenticated:
-        profile, _ = StudentProfile.objects.get_or_create(
-            user=request.user,
-            defaults={
-                'full_name': request.user.full_name or 'Santosh Mora',
-                'registration_number': 'REG2024001',
-                'grading_system': default_system,
-                'calculation_policy': default_policy,
-            }
-        )
-    else:
+    if request:
+        # 1. Check X-Student-Id header
+        student_id = request.headers.get('X-Student-Id') if hasattr(request, 'headers') else None
+        if not student_id and hasattr(request, 'META'):
+            student_id = request.META.get('HTTP_X_STUDENT_ID')
+        if student_id:
+            try:
+                p = StudentProfile.objects.filter(id=student_id).first()
+                if p:
+                    return p
+            except Exception:
+                pass
+
+        # 2. Check X-Registration-Number header
+        reg_no = request.headers.get('X-Registration-Number') if hasattr(request, 'headers') else None
+        if not reg_no and hasattr(request, 'META'):
+            reg_no = request.META.get('HTTP_X_REGISTRATION_NUMBER')
+        if reg_no:
+            p = StudentProfile.objects.filter(registration_number__iexact=reg_no.strip()).first()
+            if p:
+                return p
+
+        # 3. Check authenticated user
+        if hasattr(request, 'user') and request.user and request.user.is_authenticated:
+            profile, _ = StudentProfile.objects.get_or_create(
+                user=request.user,
+                defaults={
+                    'full_name': request.user.full_name or 'Santosh Mora',
+                    'registration_number': 'REG2024001',
+                    'grading_system': default_system,
+                    'calculation_policy': default_policy,
+                }
+            )
+            return profile
+
+    # 4. Fallback: retrieve MORA SANTOSH or first existing profile
+    profile = StudentProfile.objects.filter(registration_number='424154').first()
+    if not profile:
+        profile = StudentProfile.objects.first()
+
+    if not profile:
         User = get_user_model()
         user = User.objects.filter(email='student@gradelens.local').first()
         if not user:
             user = User.objects.create(
                 email='student@gradelens.local',
                 username='student@gradelens.local',
-                full_name='Santosh Mora'
+                full_name='MORA SANTOSH'
             )
             user.set_unusable_password()
             user.save()
 
-        profile, _ = StudentProfile.objects.get_or_create(
+        profile = StudentProfile.objects.create(
             user=user,
-            defaults={
-                'full_name': 'Santosh Mora',
-                'registration_number': 'REG2024001',
-                'grading_system': default_system,
-                'calculation_policy': default_policy,
-            }
+            full_name='MORA SANTOSH',
+            registration_number='424154',
+            roll_number='424154',
+            department='Computer Science & Engineering',
+            academic_year='3rd Year (B.Tech)',
+            institute_email='424154@student.nitandhra.ac.in',
+            university_name='National Institute of Technology Andhra Pradesh',
+            grading_system=default_system,
+            calculation_policy=default_policy,
         )
 
     # Ensure defaults are linked to profile

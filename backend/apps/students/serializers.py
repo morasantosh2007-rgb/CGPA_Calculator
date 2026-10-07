@@ -16,6 +16,7 @@ class StudentProfileSerializer(serializers.ModelSerializer):
         model = StudentProfile
         fields = (
             'id', 'full_name', 'registration_number', 'roll_number',
+            'department', 'academic_year', 'institute_email', 'university_name',
             'university', 'university_detail',
             'grading_system', 'grading_system_detail',
             'calculation_policy', 'calculation_policy_detail',

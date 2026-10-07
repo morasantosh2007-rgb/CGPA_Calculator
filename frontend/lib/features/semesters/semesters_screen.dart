@@ -88,7 +88,6 @@ class _SemestersScreenState extends State<SemestersScreen> {
                   itemBuilder: (context, index) {
                     final sem = _semesters[index];
                     final sgpaStr = sem.sgpa != null ? sem.sgpa!.toStringAsFixed(2) : 'Pending';
-                    final attemptsCount = sem.attempts.length;
                     final hasBacklogs = sem.status == 'BACKLOGS_PENDING';
 
                     return InkWell(
@@ -161,25 +160,12 @@ class _SemestersScreenState extends State<SemestersScreen> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Attempts', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                                      Text('Subjects', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                                       const SizedBox(height: 2),
-                                      Text('$attemptsCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                      Text('${sem.effectiveSubjectsCount}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                     ],
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 14),
-                              Wrap(
-                                spacing: 8,
-                                children: sem.attempts.map((att) {
-                                  return Chip(
-                                    visualDensity: VisualDensity.compact,
-                                    label: Text('${att.examType} (Attempt ${att.attemptNumber})', style: const TextStyle(fontSize: 11)),
-                                    backgroundColor: att.examType == 'REGULAR'
-                                        ? const Color(0xFF2563EB).withOpacity(0.08)
-                                        : Colors.orange.withOpacity(0.1),
-                                  );
-                                }).toList(),
                               ),
                             ],
                           ),

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
+import 'core/network/api_client.dart';
 import 'features/navigation/main_nav_scaffold.dart';
+import 'features/onboarding/onboarding_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const GradeLensApp());
+  final hasSetup = await ApiClient.hasCompletedSetup();
+  runApp(GradeLensApp(hasCompletedSetup: hasSetup));
 }
 
 class GradeLensApp extends StatelessWidget {
-  const GradeLensApp({super.key});
+  final bool hasCompletedSetup;
+  const GradeLensApp({super.key, required this.hasCompletedSetup});
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +22,7 @@ class GradeLensApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
-      home: const MainNavScaffold(),
+      home: hasCompletedSetup ? const MainNavScaffold() : const OnboardingScreen(),
     );
   }
 }

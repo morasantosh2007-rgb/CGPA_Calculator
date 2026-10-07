@@ -18,19 +18,28 @@ class AttemptReconciler:
             defaults={'academic_year': gradesheet.extracted_session or ''}
         )
 
-        # 2. Determine Attempt Number
-        existing_attempts = semester.attempts.all().order_by('attempt_number')
-        attempt_num = existing_attempts.count() + 1
-
-        # 3. Create Academic Attempt
-        academic_attempt = AcademicAttempt.objects.create(
-            semester=semester,
-            attempt_number=attempt_num,
-            exam_type=exam_type,
-            raw_exam_type=gradesheet.raw_header_text[:100],
-            academic_session=gradesheet.extracted_session or '',
-            is_verified=True
-        )
+        # 2. Determine or reuse Academic Attempt for this exam type
+        session = gradesheet.extracted_session or ''
+        existing_attempt = semester.attempts.filter(exam_type=exam_type).first()
+        if existing_attempt:
+            academic_attempt = existing_attempt
+            attempt_num = academic_attempt.attempt_number
+            academic_attempt.academic_session = session or academic_attempt.academic_session
+            academic_attempt.is_verified = True
+            academic_attempt.save()
+            # Clear old subject attempts on this attempt to avoid duplication on re-verify
+            academic_attempt.subject_attempts.all().delete()
+        else:
+            existing_attempts = semester.attempts.all().order_by('attempt_number')
+            attempt_num = existing_attempts.count() + 1
+            academic_attempt = AcademicAttempt.objects.create(
+                semester=semester,
+                attempt_number=attempt_num,
+                exam_type=exam_type,
+                raw_exam_type=gradesheet.raw_header_text[:100],
+                academic_session=session,
+                is_verified=True
+            )
 
         # Link gradesheet to attempt
         gradesheet.academic_attempt = academic_attempt
@@ -52,7 +61,7 @@ class AttemptReconciler:
                 is_pass = rule.is_pass
             else:
                 from services.extraction.table_extractor import TableExtractor
-                fallback_val = item.get('grade_point', TableExtractor.VALID_GRADES.get(norm_grade, 0.0))
+                fallback_val = TableExtractor.VALID_GRADES.get(norm_grade, item.get('grade_point', 0.0))
                 gp = Decimal(str(fallback_val))
                 is_pass = norm_grade != 'F'
 
