@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../verification/verification_screen.dart';
@@ -114,9 +115,22 @@ class _UploadScreenState extends State<UploadScreen> {
         throw Exception('Selected file "${item.name}" has no readable data.');
       }
 
+      final ext = item.name.split('.').last.toLowerCase();
+      MediaType mediaType;
+      if (ext == 'pdf') {
+        mediaType = MediaType('application', 'pdf');
+      } else if (ext == 'png') {
+        mediaType = MediaType('image', 'png');
+      } else if (ext == 'webp') {
+        mediaType = MediaType('image', 'webp');
+      } else {
+        mediaType = MediaType('image', 'jpeg');
+      }
+
       final multipartFile = MultipartFile.fromBytes(
         item.bytes!,
         filename: item.name,
+        contentType: mediaType,
       );
 
       final formData = FormData.fromMap({
@@ -124,8 +138,8 @@ class _UploadScreenState extends State<UploadScreen> {
       });
 
       setState(() {
-        _uploadProgress = 0.45;
-        _uploadStatusMessage = 'Reading document structure and heading metadata...';
+        _uploadProgress = 0.35;
+        _uploadStatusMessage = 'Uploading ${item.name} (${item.formattedSize})...';
       });
 
       final response = await ApiClient.dio.post(
@@ -135,6 +149,9 @@ class _UploadScreenState extends State<UploadScreen> {
           if (total > 0 && mounted) {
             setState(() {
               _uploadProgress = 0.2 + (sent / total) * 0.3;
+              if (sent == total) {
+                _uploadStatusMessage = 'Running AI OCR & heading intelligence... (may take 20-40s for multi-page scans)';
+              }
             });
           }
         },
@@ -166,12 +183,34 @@ class _UploadScreenState extends State<UploadScreen> {
       }
     } on DioException catch (e) {
       if (mounted) {
-        final errorMsg = e.response?.data?['error'] ?? 'Upload failed. Please check the document format.';
+        String errorMsg;
+        if (e.type == DioExceptionType.receiveTimeout || e.type == DioExceptionType.connectionTimeout) {
+          errorMsg = 'Document processing took longer than expected. If uploading a multi-page PDF scan, please retry.';
+        } else if (e.response?.data is Map) {
+          final data = e.response!.data as Map;
+          if (data['error'] != null && data['error'].toString().isNotEmpty) {
+            errorMsg = data['error'].toString();
+          } else if (data['detail'] != null) {
+            errorMsg = data['detail'].toString();
+          } else if (data['file'] != null) {
+            final fErr = data['file'];
+            errorMsg = fErr is List ? fErr.join(', ') : fErr.toString();
+          } else if (data['message'] != null) {
+            errorMsg = data['message'].toString();
+          } else {
+            errorMsg = 'Upload failed (${e.response?.statusCode ?? 400}). Please check your document.';
+          }
+        } else if (e.response?.data is String && (e.response!.data as String).isNotEmpty) {
+          errorMsg = 'Server response error: ${e.response?.statusCode}';
+        } else {
+          errorMsg = 'Upload failed: ${e.message ?? "Connection interrupted"}. Please check your connection.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMsg),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
           ),
         );
       }

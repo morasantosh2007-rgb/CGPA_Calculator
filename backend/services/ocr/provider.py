@@ -117,6 +117,43 @@ class DigitalPDFProvider(OCRProvider):
         self.tesseract_provider = tesseract_provider
 
     def extract_pages(self, pdf_path):
+        pages = []
+        # Priority 1: High-speed PyMuPDF
+        try:
+            import pymupdf
+            doc = pymupdf.open(pdf_path)
+            for page_idx, page in enumerate(doc):
+                txt = (page.get_text() or "").strip()
+                boxes = []
+                pil_img = None
+
+                # If scanned / image-based PDF page with little selectable text
+                if len(txt) < 30:
+                    pix = page.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+                    pil_img = Image.open(io.BytesIO(img_bytes))
+
+                    if self.rapid_provider and self.rapid_provider.is_available():
+                        boxes, txt, pil_img = self.rapid_provider.extract_boxes_and_text(pil_img)
+                    elif self.tesseract_provider:
+                        try:
+                            txt = self.tesseract_provider.extract_text(pil_img)
+                        except Exception:
+                            pass
+
+                pages.append({
+                    'page_number': page_idx + 1,
+                    'text': txt,
+                    'boxes': boxes,
+                    'pil_image': pil_img
+                })
+            doc.close()
+            if pages:
+                return pages
+        except Exception:
+            pass
+
+        # Priority 2: Fallback to pypdf
         try:
             reader = pypdf.PdfReader(pdf_path)
             pages = []
@@ -182,7 +219,7 @@ class HybridOCRProvider(OCRProvider):
         if ext == '.pdf':
             pages_data = self.pdf_provider.extract_pages(file_path)
             pdf_text = "\n\n".join([f"--- PAGE {p['page_number']} ---\n{p['text']}" for p in pages_data if p['text']])
-            if len(pdf_text.strip()) > 30:
+            if len(pdf_text.strip()) > 10:
                 return {
                     'text': pdf_text,
                     'pages': pages_data,
@@ -190,8 +227,8 @@ class HybridOCRProvider(OCRProvider):
                     'confidence': 0.98
                 }
             return {
-                'text': "",
-                'pages': [],
+                'text': pdf_text,
+                'pages': pages_data,
                 'provider': 'PDFProvider',
                 'confidence': 0.50
             }

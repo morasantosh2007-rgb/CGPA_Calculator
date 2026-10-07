@@ -172,9 +172,13 @@ class IngestionService:
         for b in semester_blocks:
             all_subjects.extend(b['subjects'])
 
+        detected_doc_type = 'TRANSCRIPT' if len(semester_blocks) > 1 else header_meta.get('document_type', 'GRADE_SHEET')
+        if not all_subjects and (detected_doc_type == 'UNKNOWN_DOCUMENT' or header_meta.get('document_type') == 'UNKNOWN_DOCUMENT'):
+            raise ValueError("This document does not appear to be a supported grade sheet. Please ensure the uploaded file is a clear photo or PDF of a university grade report or marks memo.")
+
         primary_block = semester_blocks[0]
         gradesheet.raw_header_text = header_text
-        gradesheet.document_type = 'TRANSCRIPT' if len(semester_blocks) > 1 else header_meta.get('document_type', 'GRADE_SHEET')
+        gradesheet.document_type = detected_doc_type
         gradesheet.detected_semester = custom_semester or primary_block['semester']
         gradesheet.semester_confidence = primary_block['semester_confidence']
         gradesheet.detected_exam_type = custom_exam_type or primary_block['exam_type']

@@ -30,7 +30,7 @@ class GradeSheetUploadView(APIView):
         # Duplicate check per student
         existing = GradeSheet.objects.filter(student=student_profile, file_hash=file_hash).first()
         if existing:
-            extraction = getattr(existing, 'ocr_extraction', None)
+            extraction = getattr(existing, 'extraction', None)
             extracted_data = extraction.extracted_data if extraction else {}
             blocks = extracted_data.get('semester_blocks', [])
             if blocks and len(blocks) > 0:
@@ -56,18 +56,21 @@ class GradeSheetUploadView(APIView):
                 }, status=status.HTTP_200_OK)
             else:
                 # Reprocess existing
-                result = IngestionService.process_gradesheet(
-                    gradesheet=existing,
-                    custom_semester=serializer.validated_data.get('custom_semester'),
-                    custom_exam_type=serializer.validated_data.get('custom_exam_type')
-                )
-                return Response({
-                    'message': 'Grade sheet parsed successfully.',
-                    'gradesheet': GradeSheetSerializer(existing).data,
-                    'status': existing.upload_status,
-                    'extracted_summary': result,
-                    'is_duplicate': False
-                }, status=status.HTTP_200_OK)
+                try:
+                    result = IngestionService.process_gradesheet(
+                        gradesheet=existing,
+                        custom_semester=serializer.validated_data.get('custom_semester'),
+                        custom_exam_type=serializer.validated_data.get('custom_exam_type')
+                    )
+                    return Response({
+                        'message': 'Grade sheet parsed successfully.',
+                        'gradesheet': GradeSheetSerializer(existing).data,
+                        'status': existing.upload_status,
+                        'extracted_summary': result,
+                        'is_duplicate': False
+                    }, status=status.HTTP_200_OK)
+                except Exception as e:
+                    return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         # Create GradeSheet
         gradesheet = GradeSheet.objects.create(
