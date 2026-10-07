@@ -34,14 +34,43 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
       final semRes = await ApiClient.dio.get('${ApiConstants.semesters}${widget.semesterId}/');
       final attRes = await ApiClient.dio.get('${ApiConstants.semesters}${widget.semesterId}/attempts/');
 
+      List rawAttempts = [];
+      if (attRes.data is Map) {
+        rawAttempts = attRes.data['results'] as List? ?? [];
+      } else if (attRes.data is List) {
+        rawAttempts = attRes.data as List;
+      }
+
       setState(() {
-        _semesterData = semRes.data;
-        _attempts = attRes.data as List? ?? [];
+        _semesterData = semRes.data is Map ? semRes.data as Map<String, dynamic> : null;
+        _attempts = rawAttempts;
       });
     } catch (e) {
-      // Handle error
+      // Handle error gracefully
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Color _getGradeColor(String grade) {
+    switch (grade.toUpperCase()) {
+      case 'EX':
+      case 'O':
+        return const Color(0xFF6366F1);
+      case 'A':
+        return const Color(0xFF2563EB);
+      case 'B':
+        return const Color(0xFF0D9488);
+      case 'C':
+        return const Color(0xFFD97706);
+      case 'D':
+        return const Color(0xFFEA580C);
+      case 'P':
+        return const Color(0xFF10B981);
+      case 'F':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFF64748B);
     }
   }
 
@@ -58,45 +87,105 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
 
     final sgpa = _semesterData?['sgpa'];
     final totalCredits = _semesterData?['total_credits'] ?? 0.0;
+    final subjects = (_semesterData?['effective_subjects'] as List?) ?? [];
+    final academicYear = _semesterData?['academic_year'] ?? '';
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Semester ${widget.semesterNumber} History', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text('Semester ${widget.semesterNumber} Detail', style: const TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchSemesterDetail,
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Summary Banner
+            // 1. Summary Banner
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.primary.withOpacity(0.2)),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+              child: Column(
                 children: [
-                  Column(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Final Reconciled SGPA', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 4),
                       Text(
-                        sgpa != null ? (sgpa as num).toStringAsFixed(2) : 'N/A',
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: theme.colorScheme.primary),
+                        'SEMESTER ${widget.semesterNumber}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
                       ),
+                      if (academicYear.toString().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$academicYear',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                     ],
                   ),
-                  Container(height: 40, width: 1, color: Colors.grey.withOpacity(0.3)),
-                  Column(
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      const Text('Total Earned Credits', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${(totalCredits as num).toInt()}',
-                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900),
+                      Column(
+                        children: [
+                          const Text('Reconciled SGPA', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                          const SizedBox(height: 4),
+                          Text(
+                            sgpa != null ? (sgpa as num).toStringAsFixed(2) : '--',
+                            style: const TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(height: 48, width: 1, color: Colors.white24),
+                      Column(
+                        children: [
+                          const Text('Total Earned Credits', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                          const SizedBox(height: 4),
+                          Text(
+                            (totalCredits as num).toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -106,15 +195,155 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
 
             const SizedBox(height: 28),
 
-            // Examination Attempts Timeline
-            Text(
-              'Examination Attempts (${_attempts.length})',
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            // 2. Effective Reconciled Course List
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Effective Reconciled Subjects (${subjects.length})',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Reconciled Best Standing',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF166534)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            if (subjects.isEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'No individual subjects reconciled yet.',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                ),
+              )
+            else
+              Card(
+                elevation: 0.5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.grey.withOpacity(0.12)),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: subjects.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withOpacity(0.15)),
+                  itemBuilder: (context, idx) {
+                    final subj = subjects[idx];
+                    final code = subj['subject_code'] ?? '';
+                    final name = subj['subject_name'] ?? '';
+                    final grade = (subj['grade'] ?? '').toString();
+                    final gp = ((subj['grade_point'] as num?)?.toDouble()) ?? 0.0;
+                    final credits = ((subj['credits'] as num?)?.toDouble()) ?? 0.0;
+                    final isPass = subj['is_pass'] == true;
+                    final gradeColor = _getGradeColor(grade);
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: gradeColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: gradeColor.withOpacity(0.3)),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          grade,
+                          style: TextStyle(
+                            color: gradeColor,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                code,
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${credits.toStringAsFixed(1)} Credits • GP: ${gp.toStringAsFixed(1)}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isPass ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isPass ? 'PASS' : 'FAIL',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isPass ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            const SizedBox(height: 28),
+
+            // 3. Examination Attempts Timeline
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Examination Attempts & Sittings (${_attempts.length})',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'Full Audit Trail',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
 
             for (var att in _attempts) ...[
               Card(
+                elevation: 0.5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: Colors.grey.withOpacity(0.12)),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -126,20 +355,29 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                           Row(
                             children: [
                               Icon(
-                                att['exam_type'] == 'REGULAR' ? Icons.assignment_outlined : Icons.replay_outlined,
-                                color: att['exam_type'] == 'REGULAR' ? theme.colorScheme.primary : Colors.orange,
+                                att['exam_type'] == 'REGULAR'
+                                    ? Icons.assignment_outlined
+                                    : att['exam_type'] == 'REVALUATION'
+                                        ? Icons.rate_review_outlined
+                                        : Icons.replay_outlined,
+                                color: att['exam_type'] == 'REGULAR'
+                                    ? const Color(0xFF2563EB)
+                                    : att['exam_type'] == 'REVALUATION'
+                                        ? const Color(0xFF8B5CF6)
+                                        : Colors.amber.shade800,
+                                size: 20,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 '${att['exam_type']} Examination (Attempt ${att['attempt_number']})',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                             ],
                           ),
                           if (att['is_verified'] == true)
                             const Chip(
                               visualDensity: VisualDensity.compact,
-                              label: Text('Verified', style: TextStyle(fontSize: 10, color: Colors.green)),
+                              label: Text('Verified', style: TextStyle(fontSize: 10, color: Color(0xFF166534))),
                               backgroundColor: Color(0xFFDCFCE7),
                             ),
                         ],
@@ -148,11 +386,12 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                         const SizedBox(height: 4),
                         Text('Session: ${att['academic_session']}', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
                       ],
-                      const SizedBox(height: 12),
-                      const Divider(),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
                       Text(
                         'Subjects recorded in this sitting: ${att['subject_attempts_count']}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                       ),
                       if (att['gradesheet_file_url'] != null) ...[
                         const SizedBox(height: 10),
@@ -187,7 +426,7 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
             ],
           ],
         ),

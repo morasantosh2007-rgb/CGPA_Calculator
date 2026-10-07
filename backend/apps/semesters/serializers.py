@@ -35,23 +35,46 @@ class SemesterSerializer(serializers.ModelSerializer):
     sgpa = serializers.SerializerMethodField()
     total_credits = serializers.SerializerMethodField()
     effective_subjects_count = serializers.SerializerMethodField()
+    effective_subjects = serializers.SerializerMethodField()
 
     class Meta:
         model = Semester
         fields = (
             'id', 'student', 'semester_number', 'academic_year',
             'status', 'created_at', 'updated_at',
-            'attempts', 'sgpa', 'total_credits', 'effective_subjects_count'
+            'attempts', 'sgpa', 'total_credits',
+            'effective_subjects_count', 'effective_subjects'
         )
         read_only_fields = ('student',)
 
     def get_sgpa(self, obj):
         res = getattr(obj, 'result', None)
+        if not res and obj.effective_results.exists():
+            from services.calculation.engine import CalculationEngine
+            res = CalculationEngine.reconcile_semester(obj)
         return float(res.sgpa) if res else None
 
     def get_total_credits(self, obj):
         res = getattr(obj, 'result', None)
-        return float(res.total_credits_registered) if res else 0.0
+        if not res and obj.effective_results.exists():
+            from services.calculation.engine import CalculationEngine
+            res = CalculationEngine.reconcile_semester(obj)
+        return float(res.total_credits_earned) if res else 0.0
 
     def get_effective_subjects_count(self, obj):
         return obj.effective_results.count()
+
+    def get_effective_subjects(self, obj):
+        results = obj.effective_results.select_related('subject').all()
+        return [
+            {
+                'id': str(r.id),
+                'subject_code': r.subject.subject_code,
+                'subject_name': r.subject.subject_name,
+                'grade': r.effective_grade,
+                'grade_point': float(r.effective_grade_point),
+                'credits': float(r.effective_credits),
+                'is_pass': r.is_pass,
+            }
+            for r in results
+        ]

@@ -23,18 +23,33 @@ class AcademicSummary {
     required this.lowestSgpa,
   });
 
+  static double _toDouble(dynamic val, [double defaultVal = 0.0]) {
+    if (val == null) return defaultVal;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? defaultVal;
+    return defaultVal;
+  }
+
+  static int _toInt(dynamic val, [int defaultVal = 0]) {
+    if (val == null) return defaultVal;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    if (val is String) return int.tryParse(val) ?? defaultVal;
+    return defaultVal;
+  }
+
   factory AcademicSummary.fromJson(Map<String, dynamic> json) {
     return AcademicSummary(
-      studentName: json['student_name'] ?? '',
-      registrationNumber: json['registration_number'] ?? '',
-      universityName: json['university_name'] ?? '',
-      cgpa: (json['cgpa'] as num?)?.toDouble() ?? 0.0,
-      totalCreditsCompleted: (json['total_credits_completed'] as num?)?.toDouble() ?? 0.0,
-      totalBacklogsCount: json['total_backlogs_count'] ?? 0,
-      clearedBacklogsCount: json['cleared_backlogs_count'] ?? 0,
-      activeBacklogsCount: json['active_backlogs_count'] ?? 0,
-      highestSgpa: (json['highest_sgpa'] as num?)?.toDouble() ?? 0.0,
-      lowestSgpa: (json['lowest_sgpa'] as num?)?.toDouble() ?? 0.0,
+      studentName: json['student_name']?.toString() ?? '',
+      registrationNumber: json['registration_number']?.toString() ?? '',
+      universityName: json['university_name']?.toString() ?? '',
+      cgpa: _toDouble(json['cgpa']),
+      totalCreditsCompleted: _toDouble(json['total_credits_completed']),
+      totalBacklogsCount: _toInt(json['total_backlogs_count']),
+      clearedBacklogsCount: _toInt(json['cleared_backlogs_count']),
+      activeBacklogsCount: _toInt(json['active_backlogs_count']),
+      highestSgpa: _toDouble(json['highest_sgpa']),
+      lowestSgpa: _toDouble(json['lowest_sgpa']),
     );
   }
 }

@@ -26,9 +26,14 @@ class _SemestersScreenState extends State<SemestersScreen> {
     setState(() => _isLoading = true);
     try {
       final res = await ApiClient.dio.get(ApiConstants.semesters);
-      final list = res.data['results'] as List? ?? res.data as List? ?? [];
+      List rawList = [];
+      if (res.data is Map) {
+        rawList = res.data['results'] as List? ?? [];
+      } else if (res.data is List) {
+        rawList = res.data as List;
+      }
       setState(() {
-        _semesters = list.map((s) => SemesterModel.fromJson(s)).toList();
+        _semesters = rawList.map((s) => SemesterModel.fromJson(s as Map<String, dynamic>)).toList();
         _semesters.sort((a, b) => a.semesterNumber.compareTo(b.semesterNumber));
       });
     } catch (e) {

@@ -3,6 +3,9 @@ from .models import SemesterResult, AcademicSummary
 
 class SemesterResultSerializer(serializers.ModelSerializer):
     semester_number = serializers.IntegerField(source='semester.semester_number', read_only=True)
+    sgpa = serializers.FloatField()
+    total_credits_registered = serializers.FloatField()
+    total_credits_earned = serializers.FloatField()
 
     class Meta:
         model = SemesterResult
@@ -16,6 +19,10 @@ class AcademicSummarySerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.full_name', read_only=True)
     registration_number = serializers.CharField(source='student.registration_number', read_only=True)
     university_name = serializers.CharField(source='student.university.name', read_only=True, default='')
+    cgpa = serializers.FloatField()
+    total_credits_completed = serializers.FloatField()
+    highest_sgpa = serializers.FloatField()
+    lowest_sgpa = serializers.FloatField()
 
     class Meta:
         model = AcademicSummary
