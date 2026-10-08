@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
 import '../../core/utils/file_download_helper.dart';
+import '../upload/upload_screen.dart';
 
 class SemesterDetailScreen extends StatefulWidget {
   final String semesterId;
@@ -52,6 +53,57 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
     }
   }
 
+  Future<void> _deleteThisSemester() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Semester ${widget.semesterNumber}?'),
+        content: Text(
+          'Are you sure you want to delete Semester ${widget.semesterNumber}?\n\n'
+          'This will permanently remove this semester and its attempts, and automatically recalculate your overall CGPA.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Semester'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ApiClient.dio.delete('${ApiConstants.semesters}${widget.semesterId}/');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Semester ${widget.semesterNumber} deleted and CGPA recalculated.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.of(context).pop(true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete semester: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Color _getGradeColor(String grade) {
     switch (grade.toUpperCase()) {
       case 'EX':
@@ -94,6 +146,25 @@ class _SemesterDetailScreenState extends State<SemesterDetailScreen> {
       appBar: AppBar(
         title: Text('Semester ${widget.semesterNumber} Detail', style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.upload_file_outlined),
+            tooltip: 'Re-upload Grade Sheet for Sem ${widget.semesterNumber}',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => UploadScreen(
+                    preselectedSemester: widget.semesterNumber,
+                    isReupload: true,
+                  ),
+                ),
+              ).then((_) => _fetchSemesterDetail());
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            tooltip: 'Delete Semester ${widget.semesterNumber}',
+            onPressed: _deleteThisSemester,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _fetchSemesterDetail,

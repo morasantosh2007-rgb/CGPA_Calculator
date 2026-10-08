@@ -27,9 +27,13 @@ class GradeSheetUploadView(APIView):
             hasher.update(chunk)
         file_hash = hasher.hexdigest()
 
+        is_reupload = serializer.validated_data.get('is_reupload', False) or request.data.get('is_reupload') in ['true', 'True', True, 1, '1']
+        custom_sem = serializer.validated_data.get('custom_semester')
+        custom_exam = serializer.validated_data.get('custom_exam_type')
+
         # Duplicate check per student
         existing = GradeSheet.objects.filter(student=student_profile, file_hash=file_hash).first()
-        if existing:
+        if existing and not is_reupload:
             extraction = getattr(existing, 'extraction', None)
             extracted_data = extraction.extracted_data if extraction else {}
             blocks = extracted_data.get('semester_blocks', [])
@@ -55,31 +59,23 @@ class GradeSheetUploadView(APIView):
                     'is_duplicate': True
                 }, status=status.HTTP_200_OK)
             else:
-                # Reprocess existing
-                try:
-                    result = IngestionService.process_gradesheet(
-                        gradesheet=existing,
-                        custom_semester=serializer.validated_data.get('custom_semester'),
-                        custom_exam_type=serializer.validated_data.get('custom_exam_type')
-                    )
-                    return Response({
-                        'message': 'Grade sheet parsed successfully.',
-                        'gradesheet': GradeSheetSerializer(existing).data,
-                        'status': existing.upload_status,
-                        'extracted_summary': result,
-                        'is_duplicate': False
-                    }, status=status.HTTP_200_OK)
-                except Exception as e:
-                    return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                is_reupload = True
 
-        # Create GradeSheet
-        gradesheet = GradeSheet.objects.create(
-            student=student_profile,
-            original_filename=uploaded_file.name,
-            file=uploaded_file,
-            file_hash=file_hash,
-            upload_status='PROCESSING'
-        )
+        if existing and is_reupload:
+            existing.file = uploaded_file
+            existing.original_filename = uploaded_file.name
+            existing.file_hash = file_hash
+            existing.upload_status = 'PROCESSING'
+            existing.save()
+            gradesheet = existing
+        else:
+            gradesheet = GradeSheet.objects.create(
+                student=student_profile,
+                original_filename=uploaded_file.name,
+                file=uploaded_file,
+                file_hash=file_hash,
+                upload_status='PROCESSING'
+            )
 
         # Create Processing Job
         job = ProcessingJob.objects.create(

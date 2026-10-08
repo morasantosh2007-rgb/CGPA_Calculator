@@ -30,7 +30,14 @@ class UploadItem {
 }
 
 class UploadScreen extends StatefulWidget {
-  const UploadScreen({super.key});
+  final int? preselectedSemester;
+  final bool isReupload;
+
+  const UploadScreen({
+    super.key,
+    this.preselectedSemester,
+    this.isReupload = false,
+  });
 
   @override
   State<UploadScreen> createState() => _UploadScreenState();
@@ -42,6 +49,15 @@ class _UploadScreenState extends State<UploadScreen> {
   bool _isUploading = false;
   String _uploadStatusMessage = '';
   double _uploadProgress = 0.0;
+  int? _targetSemester;
+  bool _forceReupload = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _targetSemester = widget.preselectedSemester;
+    _forceReupload = widget.isReupload;
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -137,6 +153,13 @@ class _UploadScreenState extends State<UploadScreen> {
         'file': multipartFile,
       });
 
+      if (_targetSemester != null) {
+        formData.fields.add(MapEntry('custom_semester', _targetSemester.toString()));
+      }
+      if (_forceReupload) {
+        formData.fields.add(const MapEntry('is_reupload', 'true'));
+      }
+
       setState(() {
         _uploadProgress = 0.35;
         _uploadStatusMessage = 'Uploading ${item.name} (${item.formattedSize})...';
@@ -166,6 +189,72 @@ class _UploadScreenState extends State<UploadScreen> {
       final summary = response.data['extracted_summary'] ?? {};
       final semesterBlocks = summary['semester_blocks'] as List? ?? [];
       final subjects = summary['subjects'] as List? ?? [];
+      final isDuplicate = response.data['is_duplicate'] == true;
+
+      if (isDuplicate && !_forceReupload && mounted) {
+        final reprocess = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Color(0xFF2563EB)),
+                SizedBox(width: 10),
+                Text('Document Already Uploaded', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'This document matches an existing grade sheet in your profile.',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Detected Semester: ${sheetData['detected_semester'] ?? 1}\n'
+                    'Subjects Found: ${subjects.length}',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Would you like to review the existing data, or force re-upload and re-analyze to replace it?',
+                  style: TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Review Existing'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Force Re-upload'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+
+        if (reprocess == true) {
+          _forceReupload = true;
+          return _uploadAndProcess();
+        }
+      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -236,7 +325,12 @@ class _UploadScreenState extends State<UploadScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Upload Grade Sheets', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          _forceReupload && _targetSemester != null
+              ? 'Re-upload Semester $_targetSemester'
+              : 'Upload Grade Sheets',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -247,9 +341,9 @@ class _UploadScreenState extends State<UploadScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.08),
+                color: const Color(0xFF2563EB).withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.2)),
+                border: Border.all(color: const Color(0xFF2563EB).withValues(alpha: 0.2)),
               ),
               child: Row(
                 children: [
@@ -265,7 +359,138 @@ class _UploadScreenState extends State<UploadScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            if (_forceReupload) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.amber.shade700.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.replay_circle_filled, color: Colors.amber.shade900),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Re-upload Mode Active: Replacing Grade Sheet for Semester ${_targetSemester ?? "Auto"}',
+                        style: TextStyle(
+                          color: Colors.amber.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Exit Re-upload mode',
+                      onPressed: () => setState(() => _forceReupload = false),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Target Semester Assignment Card
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(color: Colors.grey.shade300),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.school_outlined, color: Color(0xFF2563EB), size: 22),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Target Semester',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Text(
+                                _targetSemester == null
+                                    ? 'Auto-detect from document headers (Default)'
+                                    : 'Explicitly assigned to Semester $_targetSemester',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        DropdownButton<int?>(
+                          value: _targetSemester,
+                          underline: const SizedBox(),
+                          hint: const Text('Auto-detect', style: TextStyle(fontSize: 13)),
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('Auto-detect'),
+                            ),
+                            ...List.generate(
+                              8,
+                              (i) => DropdownMenuItem<int?>(
+                                value: i + 1,
+                                child: Text('Semester ${i + 1}'),
+                              ),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              _targetSemester = val;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    if (!_forceReupload) ...[
+                      const Divider(height: 16),
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            _forceReupload = !_forceReupload;
+                          });
+                        },
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: Checkbox(
+                                value: _forceReupload,
+                                activeColor: const Color(0xFF2563EB),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _forceReupload = val ?? false;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Force re-upload & overwrite existing data for this document',
+                                style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
 
             // Ingestion Options
             Row(
@@ -323,15 +548,15 @@ class _UploadScreenState extends State<UploadScreen> {
                 child: Container(
                   height: 170,
                   decoration: BoxDecoration(
-                    color: Colors.grey.withOpacity(0.04),
-                    border: Border.all(color: Colors.grey.withOpacity(0.25), style: BorderStyle.solid),
+                    color: Colors.grey.withValues(alpha: 0.04),
+                    border: Border.all(color: Colors.grey.withValues(alpha: 0.25), style: BorderStyle.solid),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.cloud_upload_outlined, size: 44, color: theme.colorScheme.primary.withOpacity(0.6)),
+                        Icon(Icons.cloud_upload_outlined, size: 44, color: theme.colorScheme.primary.withValues(alpha: 0.6)),
                         const SizedBox(height: 10),
                         const Text(
                           'Click to select PDF or image grade sheets',
@@ -457,7 +682,7 @@ class _UploadScreenState extends State<UploadScreen> {
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 8,
               offset: const Offset(0, 2),
             )

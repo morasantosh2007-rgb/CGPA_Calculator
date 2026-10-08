@@ -19,6 +19,42 @@ class SemesterViewSet(viewsets.ModelViewSet):
         profile = get_active_student_profile(self.request)
         serializer.save(student=profile)
 
+    def perform_destroy(self, instance):
+        from apps.gradesheets.models import GradeSheet
+        from services.calculation.engine import CalculationEngine
+
+        profile = instance.student
+        sem_num = instance.semester_number
+
+        # Decouple any gradesheet attempts
+        for attempt in instance.attempts.all():
+            GradeSheet.objects.filter(academic_attempt=attempt).update(academic_attempt=None)
+
+        # Remove gradesheets explicitly associated with this semester for this student
+        GradeSheet.objects.filter(student=profile, detected_semester=sem_num).delete()
+
+        # Delete the semester (cascades to attempts, subject attempts, effective results, semester result)
+        instance.delete()
+
+        # Recalculate academic summary & CGPA across remaining semesters
+        CalculationEngine.calculate_academic_summary(profile)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        sem_num = instance.semester_number
+        profile = instance.student
+        self.perform_destroy(instance)
+
+        from apps.calculations.models import AcademicSummary
+        summary = AcademicSummary.objects.filter(student=profile).first()
+        cgpa_val = float(summary.cgpa) if summary else 0.0
+
+        return Response({
+            'message': f'Semester {sem_num} deleted successfully and CGPA recalculated.',
+            'semester_deleted': sem_num,
+            'cgpa': cgpa_val
+        })
+
     @action(detail=True, methods=['get'])
     def attempts(self, request, pk=None):
         semester = self.get_object()

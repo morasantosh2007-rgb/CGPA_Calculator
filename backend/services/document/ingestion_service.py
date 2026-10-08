@@ -88,6 +88,8 @@ class IngestionService:
 
                 page_sem = pmeta.get('semester')
                 if not page_sem:
+                    page_sem = TableExtractor.infer_semester_from_subjects(psubjects)
+                if not page_sem:
                     p_num = p.get('page_number', 1)
                     if p_num in [1, 2, 3, 4, 5, 6, 7, 8]:
                         page_sem = p_num
@@ -112,9 +114,16 @@ class IngestionService:
                 psubjects = TableExtractor.extract_subjects_from_text(p.get('text', ''))
             pmeta = HeaderDetector.extract_header_metadata(p.get('text', '')[:1500])
             if psubjects:
+                sem_num = custom_semester or pmeta.get('semester')
+                if not sem_num:
+                    sem_num = TableExtractor.infer_semester_from_subjects(psubjects)
+                if not sem_num:
+                    existing_sems = list(gradesheet.student.semesters.values_list('semester_number', flat=True))
+                    sem_num = (max(existing_sems) + 1) if existing_sems else 1
+
                 semester_blocks.append({
                     'page_number': 1,
-                    'semester': custom_semester or pmeta.get('semester') or 1,
+                    'semester': sem_num,
                     'semester_confidence': pmeta.get('semester_confidence', 0.95),
                     'exam_type': custom_exam_type or pmeta.get('exam_type', 'REGULAR'),
                     'raw_exam_type': pmeta.get('raw_exam_type', 'REGULAR'),
@@ -155,9 +164,16 @@ class IngestionService:
         # 3. Fallback to standard single block if no multi-semester sections found
         if not semester_blocks:
             subjects = TableExtractor.extract_subjects_from_text(extracted_text)
+            sem_num = custom_semester or header_meta.get('semester')
+            if not sem_num:
+                sem_num = TableExtractor.infer_semester_from_subjects(subjects)
+            if not sem_num:
+                existing_sems = list(gradesheet.student.semesters.values_list('semester_number', flat=True))
+                sem_num = (max(existing_sems) + 1) if existing_sems else 1
+
             semester_blocks.append({
                 'page_number': 1,
-                'semester': custom_semester or header_meta.get('semester') or 1,
+                'semester': sem_num,
                 'semester_confidence': header_meta.get('semester_confidence', 0.80),
                 'exam_type': custom_exam_type or header_meta.get('exam_type') or 'REGULAR',
                 'raw_exam_type': header_meta.get('raw_exam_type', 'REGULAR'),

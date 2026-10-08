@@ -36,3 +36,4 @@ class GradeSheetUploadSerializer(serializers.Serializer):
     file = serializers.FileField(required=True)
     custom_semester = serializers.IntegerField(required=False, min_value=1, max_value=12)
     custom_exam_type = serializers.CharField(required=False)
+    is_reupload = serializers.BooleanField(required=False, default=False)

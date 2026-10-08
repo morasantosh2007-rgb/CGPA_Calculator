@@ -47,7 +47,30 @@ class ApiClient {
   static Future<bool> hasCompletedSetup() async {
     final prefs = await SharedPreferences.getInstance();
     final studentId = prefs.getString('student_id');
-    return studentId != null && studentId.isNotEmpty;
+    if (studentId != null && studentId.isNotEmpty) {
+      return true;
+    }
+
+    // Auto-sync existing active profile from backend so new browser runs don't re-prompt
+    try {
+      final res = await dio.get(ApiConstants.profile);
+      if (res.data is Map && res.data['id'] != null) {
+        final id = res.data['id'].toString();
+        final reg = res.data['registration_number']?.toString() ?? '';
+        final name = res.data['full_name']?.toString() ?? '';
+
+        if (id.isNotEmpty) {
+          await saveStudentSession(
+            studentId: id,
+            regNo: reg,
+            fullName: name,
+          );
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
   }
 
   static Future<void> saveStudentSession({

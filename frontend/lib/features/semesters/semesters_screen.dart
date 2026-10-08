@@ -4,6 +4,7 @@ import '../../core/network/api_client.dart';
 import '../../core/utils/file_download_helper.dart';
 import '../../models/semester_model.dart';
 import 'semester_detail_screen.dart';
+import '../upload/upload_screen.dart';
 
 class SemestersScreen extends StatefulWidget {
   const SemestersScreen({super.key});
@@ -40,6 +41,58 @@ class _SemestersScreenState extends State<SemestersScreen> {
       // Handle error
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _deleteSemester(SemesterModel sem) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Semester ${sem.semesterNumber}?'),
+        content: Text(
+          'Are you sure you want to delete Semester ${sem.semesterNumber}?\n\n'
+          'This will permanently remove this semester, its attempts, and all associated subjects. '
+          'Your overall cumulative CGPA and academic standing will be automatically recalculated.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete Semester'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ApiClient.dio.delete('${ApiConstants.semesters}${sem.id}/');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Semester ${sem.semesterNumber} deleted and CGPA recalculated.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _fetchSemesters();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete semester: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -106,26 +159,46 @@ class _SemestersScreenState extends State<SemestersScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Semester ${sem.semesterNumber}',
                                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                                   ),
+                                  const SizedBox(width: 8),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: hasBacklogs ? Colors.amber.withOpacity(0.15) : Colors.green.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: hasBacklogs ? Colors.amber.withValues(alpha: 0.15) : Colors.green.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: Text(
                                       hasBacklogs ? 'Backlogs Pending' : 'Completed',
                                       style: TextStyle(
                                         color: hasBacklogs ? Colors.amber.shade900 : Colors.green.shade800,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+                                        fontSize: 11,
                                       ),
                                     ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: const Icon(Icons.upload_file_outlined, size: 20),
+                                    tooltip: 'Re-upload Grade Sheet for Sem ${sem.semesterNumber}',
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => UploadScreen(
+                                            preselectedSemester: sem.semesterNumber,
+                                            isReupload: true,
+                                          ),
+                                        ),
+                                      ).then((_) => _fetchSemesters());
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                    tooltip: 'Delete Semester ${sem.semesterNumber}',
+                                    onPressed: () => _deleteSemester(sem),
                                   ),
                                 ],
                               ),
@@ -164,6 +237,42 @@ class _SemestersScreenState extends State<SemestersScreen> {
                                       const SizedBox(height: 2),
                                       Text('${sem.effectiveSubjectsCount}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                     ],
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => UploadScreen(
+                                            preselectedSemester: sem.semesterNumber,
+                                            isReupload: true,
+                                          ),
+                                        ),
+                                      ).then((_) => _fetchSemesters());
+                                    },
+                                    icon: const Icon(Icons.refresh, size: 16),
+                                    label: const Text('Re-upload Sheet', style: TextStyle(fontSize: 12)),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () => _deleteSemester(sem),
+                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                                    label: const Text('Delete', style: TextStyle(fontSize: 12, color: Colors.redAccent)),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => SemesterDetailScreen(semesterId: sem.id, semesterNumber: sem.semesterNumber),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.arrow_forward_ios, size: 14),
+                                    label: const Text('View Details', style: TextStyle(fontSize: 12)),
                                   ),
                                 ],
                               ),

@@ -142,6 +142,50 @@ class TableExtractor:
         return norm_grade, grade_point, credits, is_pass, needs_review
 
     @classmethod
+    def infer_semester_from_subjects(cls, subjects):
+        """
+        Infers likely semester number based on course codes.
+        Maps curriculum prefixes to semesters:
+        - 1st Year: CS1011/CS1021/MA1011 -> Sem 1, CS1051/CS1061/MA1021/MA1051 -> Sem 2
+        - 2nd Year: CS2011/CS2021/CS2031/CS2041 -> Sem 3, CS2051/CS2061/CS2071/CS2081 -> Sem 4
+        - 3rd Year: CS301x -> Sem 5, CS305x -> Sem 6
+        - 4th Year: CS401x -> Sem 7, CS405x -> Sem 8
+        """
+        if not subjects:
+            return None
+
+        votes = {}
+        for s in subjects:
+            code = (s.get('code') or '').strip().upper()
+            sem = None
+            if re.match(r'^(?:CS10[1-4]|MA101|PH101|EC153|HS102)', code):
+                sem = 1
+            elif re.match(r'^(?:CS10[5-9]|MA102|MA105|HS101|HS103)', code):
+                sem = 2
+            elif re.match(r'^(?:CS20[1-4]|EC154|EC251|MA203|HS105)', code):
+                sem = 3
+            elif re.match(r'^(?:CS20[5-9]|CS242|HS201|PE201)', code):
+                sem = 4
+            elif re.match(r'^(?:CS30[1-4]|EC301|MA301)', code):
+                sem = 5
+            elif re.match(r'^(?:CS30[5-9]|CS342)', code):
+                sem = 6
+            elif re.match(r'^(?:CS40[1-4])', code):
+                sem = 7
+            elif re.match(r'^(?:CS40[5-9])', code):
+                sem = 8
+            elif re.match(r'^[A-Z]{2,4}(\d)', code):
+                yr_digit = int(re.match(r'^[A-Z]{2,4}(\d)', code).group(1))
+                sem = (yr_digit * 2) - 1
+
+            if sem:
+                votes[sem] = votes.get(sem, 0) + 1
+
+        if votes:
+            return max(votes.items(), key=lambda x: x[1])[0]
+        return None
+
+    @classmethod
     def extract_subjects_from_page(cls, page_dict, rapid_ocr=None):
         """
         Specialized spatial row-slicing and OCR pipeline for grade sheet pages.

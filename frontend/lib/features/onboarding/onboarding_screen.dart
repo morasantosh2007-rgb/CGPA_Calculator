@@ -16,8 +16,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _regNoController = TextEditingController();
   final _rollNoController = TextEditingController();
   final _deptController = TextEditingController();
-  final _yearController = TextEditingController(text: '3rd Year (B.Tech)');
-  final _uniController = TextEditingController(text: 'National Institute of Technology Andhra Pradesh');
+  final _yearController = TextEditingController();
+  final _uniController = TextEditingController();
   final _emailController = TextEditingController();
 
   bool _isSubmitting = false;
@@ -32,18 +32,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _uniController.dispose();
     _emailController.dispose();
     super.dispose();
-  }
-
-  void _fillMoraSantoshPreset() {
-    setState(() {
-      _nameController.text = 'MORA SANTOSH';
-      _regNoController.text = '424154';
-      _rollNoController.text = '424154';
-      _deptController.text = 'Computer Science & Engineering';
-      _yearController.text = '3rd Year (B.Tech)';
-      _uniController.text = 'National Institute of Technology Andhra Pradesh';
-      _emailController.text = '424154@student.nitandhra.ac.in';
-    });
   }
 
   Future<void> _submitSetup() async {
@@ -145,19 +133,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.4),
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Preset shortcut
-                    OutlinedButton.icon(
-                      onPressed: _fillMoraSantoshPreset,
-                      icon: const Icon(Icons.flash_on, color: Color(0xFF2563EB), size: 18),
-                      label: const Text('Quick Fill Mora Santosh (424154)', style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-
                     const SizedBox(height: 24),
 
                     // Full Name
