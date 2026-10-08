@@ -207,7 +207,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'GradeLens parsed ${_blocks.length} semester attempt(s) from your PDF. You can verify and adjust each semester below.',
+                            'GradeNexus parsed ${_blocks.length} semester attempt(s) from your PDF. You can verify and adjust each semester below.',
                             style: const TextStyle(color: Colors.white70, fontSize: 12),
                           ),
                         ],

@@ -1,5 +1,5 @@
 name: frontend
-description: "GradeLens - Enterprise Academic Document Intelligence & CGPA Calculation Platform"
+description: "GradeNexus - Intelligent Grade Sheet OCR, Automated CGPA & Academic Analytics Platform"
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -30,3 +30,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/

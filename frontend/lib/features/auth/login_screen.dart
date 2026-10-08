@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_logo.dart';
 import '../navigation/main_nav_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -83,19 +84,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Container(
-                      height: 56,
-                      width: 56,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.school, size: 32, color: theme.colorScheme.primary),
+                    const Center(
+                      child: AppLogo(size: 68),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'GradeLens',
+                      'GradeNexus',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
@@ -116,9 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         padding: const EdgeInsets.all(12),
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
+                          color: Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withOpacity(0.3)),
+                          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                         ),
                         child: Text(
                           _errorMessage!,

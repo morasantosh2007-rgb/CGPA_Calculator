@@ -351,7 +351,7 @@ class _UploadScreenState extends State<UploadScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Upload PDFs, photos, or scanned grade sheets. GradeLens automatically reads header metadata, identifies the semester and attempt type (Regular/Supplementary), and links backlog results.',
+                      'Upload PDFs, photos, or scanned grade sheets. GradeNexus automatically reads header metadata, identifies the semester and attempt type (Regular/Supplementary), and links backlog results.',
                       style: theme.textTheme.bodyMedium?.copyWith(color: const Color(0xFF1E3A8A)),
                     ),
                   ),

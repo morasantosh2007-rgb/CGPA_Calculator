@@ -80,7 +80,7 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
                         Expanded(
                           child: TextField(
                             controller: _targetCgpaController,
-                            decoration: const InputDecoration(labelText: 'Target CGPA (e.g. 9.0)', border: OutlineInputBorder()),
+                            decoration: const InputDecoration(labelText: 'Target CGPA', border: OutlineInputBorder()),
                             keyboardType: TextInputType.number,
                           ),
                         ),
@@ -112,8 +112,8 @@ class _SimulatorScreenState extends State<SimulatorScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: _targetResult!['is_achievable'] == true
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.red.withOpacity(0.1),
+                              ? Colors.green.withValues(alpha: 0.1)
+                              : Colors.red.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: _targetResult!['is_achievable'] == true ? Colors.green : Colors.red,

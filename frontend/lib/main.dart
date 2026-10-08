@@ -7,17 +7,17 @@ import 'features/onboarding/onboarding_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final hasSetup = await ApiClient.hasCompletedSetup();
-  runApp(GradeLensApp(hasCompletedSetup: hasSetup));
+  runApp(GradeNexusApp(hasCompletedSetup: hasSetup));
 }
 
-class GradeLensApp extends StatelessWidget {
+class GradeNexusApp extends StatelessWidget {
   final bool hasCompletedSetup;
-  const GradeLensApp({super.key, required this.hasCompletedSetup});
+  const GradeNexusApp({super.key, required this.hasCompletedSetup});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'GradeLens',
+      title: 'GradeNexus',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

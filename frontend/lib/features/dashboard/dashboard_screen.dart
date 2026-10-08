@@ -6,6 +6,7 @@ import '../../models/academic_summary.dart';
 import '../../models/semester_model.dart';
 import '../upload/upload_screen.dart';
 import '../semesters/semester_detail_screen.dart';
+import '../../core/widgets/app_logo.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -84,7 +85,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('GradeLens Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppLogo(size: 28),
+            SizedBox(width: 10),
+            Text('GradeNexus', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: -0.3)),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),

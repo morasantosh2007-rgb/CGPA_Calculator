@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/network/api_client.dart';
+import '../../core/widgets/app_logo.dart';
 import '../navigation/main_nav_scaffold.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -107,21 +108,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Brand Header
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.school, size: 48, color: Color(0xFF2563EB)),
-                      ),
+                    // Brand Header with GradeNexus Logo
+                    const Center(
+                      child: AppLogo(size: 78),
                     ),
                     const SizedBox(height: 18),
                     const Center(
                       child: Text(
-                        'Welcome to GradeLens',
+                        'Welcome to GradeNexus',
                         style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5),
                       ),
                     ),
@@ -141,7 +135,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       textCapitalization: TextCapitalization.words,
                       decoration: InputDecoration(
                         labelText: 'Full Name *',
-                        hintText: 'e.g. MORA SANTOSH',
                         prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -158,7 +151,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             textCapitalization: TextCapitalization.characters,
                             decoration: InputDecoration(
                               labelText: 'Registration No *',
-                              hintText: 'e.g. 424154',
                               prefixIcon: const Icon(Icons.badge_outlined),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -172,7 +164,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             textCapitalization: TextCapitalization.characters,
                             decoration: InputDecoration(
                               labelText: 'Roll Number',
-                              hintText: 'e.g. 424154',
                               prefixIcon: const Icon(Icons.tag),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -188,7 +179,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       textCapitalization: TextCapitalization.words,
                       decoration: InputDecoration(
                         labelText: 'Department / Branch *',
-                        hintText: 'e.g. Computer Science & Engineering',
                         prefixIcon: const Icon(Icons.account_tree_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -201,7 +191,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       controller: _yearController,
                       decoration: InputDecoration(
                         labelText: 'Academic Year / Class *',
-                        hintText: 'e.g. 3rd Year (B.Tech)',
                         prefixIcon: const Icon(Icons.calendar_today_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -215,7 +204,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       textCapitalization: TextCapitalization.words,
                       decoration: InputDecoration(
                         labelText: 'Institute / University *',
-                        hintText: 'e.g. National Institute of Technology Andhra Pradesh',
                         prefixIcon: const Icon(Icons.account_balance_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -229,7 +217,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: 'Institute Email *',
-                        hintText: 'e.g. 424154@student.nitandhra.ac.in',
                         prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -258,7 +245,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                             )
                           : const Text(
-                              'Save Profile & Enter GradeLens',
+                              'Save Profile & Enter GradeNexus',
                               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                             ),
                     ),
