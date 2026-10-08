@@ -116,8 +116,23 @@ SIMPLE_JWT = {
 }
 
 # CORS
+from corsheaders.defaults import default_headers
+
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'x-student-id',
+    'x-registration-number',
+    'accept-encoding',
+    'content-disposition',
+    'cache-control',
+]
+CORS_EXPOSE_HEADERS = [
+    'content-disposition',
+    'content-type',
+    'x-student-id',
+    'x-registration-number',
+]
 
 # GradeLens Specific Defaults
 GRADELENS_DEFAULT_SCALE = {
