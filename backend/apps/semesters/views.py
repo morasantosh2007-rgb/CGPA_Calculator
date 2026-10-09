@@ -36,6 +36,10 @@ class SemesterViewSet(viewsets.ModelViewSet):
         # Delete the semester (cascades to attempts, subject attempts, effective results, semester result)
         instance.delete()
 
+        # If all semesters have been deleted, clear lingering gradesheet uploads for a clean fresh slate
+        if Semester.objects.filter(student=profile).count() == 0:
+            GradeSheet.objects.filter(student=profile).delete()
+
         # Recalculate academic summary & CGPA across remaining semesters
         CalculationEngine.calculate_academic_summary(profile)
 

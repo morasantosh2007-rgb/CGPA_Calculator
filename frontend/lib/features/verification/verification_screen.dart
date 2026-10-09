@@ -33,8 +33,37 @@ class _VerificationScreenState extends State<VerificationScreen> {
   late List<Map<String, dynamic>> _subjects;
   bool _isSaving = false;
 
-  final List<String> _gradeOptions = ['EX', 'A', 'B', 'C', 'D', 'P', 'M', 'F'];
+  final List<String> _gradeOptions = ['EX', 'O', 'A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'P', 'M', 'F'];
   final List<String> _examTypes = ['REGULAR', 'SUPPLEMENTARY', 'BACKLOG', 'REVALUATION', 'IMPROVEMENT'];
+
+  Color _getGradeColor(String? grade) {
+    if (grade == null) return Colors.grey;
+    switch (grade.trim().toUpperCase()) {
+      case 'EX':
+      case 'O':
+        return const Color(0xFF6366F1);
+      case 'A+':
+      case 'A':
+        return const Color(0xFF2563EB);
+      case 'B+':
+      case 'B':
+        return const Color(0xFF0D9488);
+      case 'C+':
+      case 'C':
+        return const Color(0xFFD97706);
+      case 'D':
+        return const Color(0xFFEA580C);
+      case 'P':
+      case 'M':
+        return const Color(0xFF059669);
+      case 'F':
+      case 'RA':
+      case 'FAIL':
+        return const Color(0xFFDC2626);
+      default:
+        return const Color(0xFF475569);
+    }
+  }
 
   @override
   void initState() {
@@ -43,8 +72,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
     _examType = widget.detectedExamType;
 
     final incomingBlocks = widget.semesterBlocks;
-    if (incomingBlocks != null && incomingBlocks.length > 1) {
-      _isMultiSemester = true;
+    if (incomingBlocks != null && incomingBlocks.isNotEmpty) {
+      _isMultiSemester = incomingBlocks.length > 1;
       _blocks = incomingBlocks.map((b) {
         final bMap = Map<String, dynamic>.from(b as Map);
         final rawSubs = bMap['subjects'] as List? ?? [];
@@ -52,6 +81,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
         return bMap;
       }).toList();
       _subjects = [];
+
+      if (!_isMultiSemester) {
+        final firstBlock = _blocks.first;
+        _semester = firstBlock['semester'] as int? ?? widget.detectedSemester;
+        _examType = firstBlock['exam_type'] as String? ?? widget.detectedExamType;
+        _subjects = firstBlock['subjects'] as List<Map<String, dynamic>>;
+      }
     } else {
       _isMultiSemester = false;
       _blocks = [];
@@ -348,10 +384,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     ),
                   ],
                 ),
-                TextButton.icon(
-                  onPressed: () => _addSubjectRowToBlock(block),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Add Course', style: TextStyle(fontSize: 12)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _addSubjectRowToBlock(block),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('Add Course', style: TextStyle(fontSize: 12)),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                      tooltip: 'Remove Semester Block',
+                      onPressed: () {
+                        setState(() {
+                          _blocks.removeAt(blockIndex);
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -405,8 +455,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final sub = subjectList[idx];
         final confidence = (sub['confidence'] as num?)?.toDouble() ?? 1.0;
         final needsReview = sub['needs_review'] == true || confidence < 0.70;
+        final rawGrade = (sub['normalized_grade'] ?? sub['raw_grade'] ?? sub['grade'] ?? 'A').toString().trim().toUpperCase();
+        final currentGrade = _gradeOptions.contains(rawGrade) ? rawGrade : 'A';
 
         return Card(
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
@@ -421,8 +474,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
               children: [
                 if (needsReview)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    margin: const EdgeInsets.only(bottom: 10),
                     decoration: BoxDecoration(
                       color: Colors.amber.shade100,
                       borderRadius: BorderRadius.circular(6),
@@ -430,68 +483,147 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.warning, size: 14, color: Colors.amber.shade900),
+                        Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amber.shade900),
                         const SizedBox(width: 4),
                         Text(
-                          'OCR Confidence: ${(confidence * 100).toInt()}% • Verify carefully',
+                          'Confidence: ${(confidence * 100).toInt()}% • Verify course and grade',
                           style: TextStyle(color: Colors.amber.shade900, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                   ),
+
+                // Row 1: Code + Course Name + Delete Icon
                 Row(
                   children: [
                     SizedBox(
-                      width: 80,
+                      width: 95,
                       child: TextFormField(
                         initialValue: sub['code'] ?? '',
-                        decoration: const InputDecoration(labelText: 'Code', isDense: true, border: OutlineInputBorder()),
-                        onChanged: (v) => sub['code'] = v,
+                        decoration: const InputDecoration(
+                          labelText: 'Code',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        ),
+                        onChanged: (v) => sub['code'] = v.trim(),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: TextFormField(
                         initialValue: sub['name'] ?? '',
-                        decoration: const InputDecoration(labelText: 'Subject Name', isDense: true, border: OutlineInputBorder()),
-                        onChanged: (v) => sub['name'] = v,
+                        decoration: const InputDecoration(
+                          labelText: 'Course Name',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        ),
+                        onChanged: (v) => sub['name'] = v.trim(),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 60,
-                      child: TextFormField(
-                        initialValue: sub['credits']?.toString() ?? '3.0',
-                        decoration: const InputDecoration(labelText: 'Cr', isDense: true, border: OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                        onChanged: (v) => sub['credits'] = double.tryParse(v) ?? 3.0,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 72,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: _gradeOptions.contains(sub['normalized_grade']) ? sub['normalized_grade'] : 'A',
-                        decoration: const InputDecoration(labelText: 'Grd', isDense: true, border: OutlineInputBorder()),
-                        items: _gradeOptions.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              sub['normalized_grade'] = val;
-                              sub['needs_review'] = false;
-                              sub['user_corrected'] = true;
-                            });
-                          }
-                        },
-                      ),
-                    ),
+                    const SizedBox(width: 4),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                      icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
+                      tooltip: 'Remove course',
                       onPressed: () {
                         setState(() {
                           subjectList.removeAt(idx);
                         });
                       },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                // Row 2: Credits Input + Grade Selector Pill + Pass/Backlog Badge
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 95,
+                      child: TextFormField(
+                        initialValue: sub['credits']?.toString() ?? '3.0',
+                        decoration: const InputDecoration(
+                          labelText: 'Credits',
+                          suffixText: 'Cr',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (v) => sub['credits'] = double.tryParse(v) ?? 3.0,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Grade Selector Pill
+                    Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: _getGradeColor(currentGrade).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _getGradeColor(currentGrade).withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Grade: ',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[700]),
+                          ),
+                          DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: currentGrade,
+                              icon: Icon(Icons.arrow_drop_down, color: _getGradeColor(currentGrade), size: 20),
+                              isDense: true,
+                              items: _gradeOptions.map((g) => DropdownMenuItem(
+                                value: g,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(color: _getGradeColor(g), shape: BoxShape.circle),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      g,
+                                      style: TextStyle(fontWeight: FontWeight.bold, color: _getGradeColor(g)),
+                                    ),
+                                  ],
+                                ),
+                              )).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setState(() {
+                                    sub['normalized_grade'] = val;
+                                    sub['needs_review'] = false;
+                                    sub['user_corrected'] = true;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: currentGrade == 'F' ? Colors.red.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        currentGrade == 'F' ? 'Backlog' : 'Pass',
+                        style: TextStyle(
+                          color: currentGrade == 'F' ? Colors.red.shade800 : Colors.green.shade800,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ],
                 ),

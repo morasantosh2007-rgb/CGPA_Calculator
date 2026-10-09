@@ -33,6 +33,10 @@ class GradeSheetUploadView(APIView):
 
         # Duplicate check per student
         existing = GradeSheet.objects.filter(student=student_profile, file_hash=file_hash).first()
+        from apps.semesters.models import Semester
+        if Semester.objects.filter(student=student_profile).count() == 0:
+            is_reupload = True
+
         if existing and not is_reupload:
             extraction = getattr(existing, 'extraction', None)
             extracted_data = extraction.extracted_data if extraction else {}

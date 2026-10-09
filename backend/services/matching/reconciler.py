@@ -36,7 +36,7 @@ class AttemptReconciler:
                 semester=semester,
                 attempt_number=attempt_num,
                 exam_type=exam_type,
-                raw_exam_type=gradesheet.raw_header_text[:100],
+                raw_exam_type=(gradesheet.raw_header_text or '')[:100],
                 academic_session=session,
                 is_verified=True
             )
