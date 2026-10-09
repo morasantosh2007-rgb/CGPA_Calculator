@@ -1,6 +1,9 @@
 import re
+import os
+import unicodedata
+import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFont, ImageDraw, ImageStat, ImageOps
 
 class TableExtractor:
     """Extracts subjects, credits, and grades from parsed document text and layout."""
@@ -80,6 +83,98 @@ class TableExtractor:
         'CS2072': 1.0, 'CS2081': 3.0, 'CS2422': 1.0, 'HS2011': 1.0, 'PE2012': 1.0,
     }
 
+    _templates_init = False
+    _grade_templates = []
+    _credit_templates = []
+
+    @classmethod
+    def _ensure_templates(cls):
+        if cls._templates_init:
+            return
+        font_paths = [
+            r'C:\Windows\Fonts\times.ttf',
+            r'C:\Windows\Fonts\timesbd.ttf',
+            r'C:\Windows\Fonts\arial.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf'
+        ]
+        available_fonts = []
+        for fp in font_paths:
+            if os.path.exists(fp):
+                for sz in [20, 22, 24, 26, 28, 30]:
+                    try:
+                        available_fonts.append(ImageFont.truetype(fp, sz))
+                    except Exception:
+                        pass
+        if not available_fonts:
+            available_fonts = [ImageFont.load_default()]
+
+        for g in ['EX', 'A', 'B', 'C', 'D', 'P', 'F']:
+            for font in available_fonts:
+                try:
+                    left, top, right, bottom = font.getbbox(g)
+                    tw = right - left + 4
+                    th = bottom - top + 4
+                    tpl = Image.new('L', (tw, th), 0)
+                    draw = ImageDraw.Draw(tpl)
+                    draw.text((2 - left, 2 - top), g, fill=255, font=font)
+                    cls._grade_templates.append((g, np.array(tpl)))
+                except Exception:
+                    pass
+
+        for c in ['1', '2', '3', '4']:
+            for font in available_fonts:
+                try:
+                    left, top, right, bottom = font.getbbox(c)
+                    tw = right - left + 4
+                    th = bottom - top + 4
+                    tpl = Image.new('L', (tw, th), 0)
+                    draw = ImageDraw.Draw(tpl)
+                    draw.text((2 - left, 2 - top), c, fill=255, font=font)
+                    cls._credit_templates.append((float(c), np.array(tpl)))
+                except Exception:
+                    pass
+
+        cls._templates_init = True
+
+    @classmethod
+    def match_grade_cell(cls, cell_img):
+        cls._ensure_templates()
+        gray = np.array(cell_img.convert('L'))
+        bin_arr = np.where(gray < 140, 0, 255).astype(np.uint8)
+        if np.sum(bin_arr == 0) < 15:
+            return None, 0.0
+        inv_cell = 255 - bin_arr
+        best_g, best_score = None, -1.0
+        for g, tpl in cls._grade_templates:
+            if tpl.shape[0] > inv_cell.shape[0] or tpl.shape[1] > inv_cell.shape[1]:
+                continue
+            res = cv2.matchTemplate(inv_cell, tpl, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, _ = cv2.minMaxLoc(res)
+            if max_val > best_score:
+                best_score = max_val
+                best_g = g
+        return best_g, best_score
+
+    @classmethod
+    def match_credits_cell(cls, cell_img):
+        cls._ensure_templates()
+        gray = np.array(cell_img.convert('L'))
+        bin_arr = np.where(gray < 140, 0, 255).astype(np.uint8)
+        if np.sum(bin_arr == 0) < 15:
+            return None, 0.0
+        inv_cell = 255 - bin_arr
+        best_c, best_score = None, -1.0
+        for c, tpl in cls._credit_templates:
+            if tpl.shape[0] > inv_cell.shape[0] or tpl.shape[1] > inv_cell.shape[1]:
+                continue
+            res = cv2.matchTemplate(inv_cell, tpl, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, _ = cv2.minMaxLoc(res)
+            if max_val > best_score:
+                best_score = max_val
+                best_c = c
+        return best_c, best_score
+
     @classmethod
     def normalize_grade(cls, raw_grade):
         if not raw_grade:
@@ -127,9 +222,11 @@ class TableExtractor:
                     credits = 3.0
                 grade = m.group(2).upper()
             else:
-                # Look at the end of the line only
+                # Look at the end of the line
                 g_match = re.search(r'\b(EX|A|B|C|D|P|M|F)\b[\/\)]*$', cleaned, re.IGNORECASE)
-                grade = g_match.group(1).upper() if g_match else 'B'
+                if not g_match:
+                    g_match = re.search(r'[\s\d](EX|A|B|C|D|P|M|F)[^A-Za-z0-9]*$', cleaned, re.IGNORECASE)
+                grade = g_match.group(1).upper() if g_match else ''
                 c_match = re.findall(r'\b([1-4](?:\.[05])?)\b', cleaned)
                 credits = float(c_match[-1]) if c_match else 3.0
 
@@ -199,6 +296,11 @@ class TableExtractor:
         if not pil_img or not rapid_ocr or not rapid_ocr.is_available():
             return cls.extract_subjects_from_text(page_text)
 
+        # Invert if dark mode so all row slices and cell crops have white backgrounds
+        stat = ImageStat.Stat(pil_img.convert('L'))
+        if stat.mean[0] < 100:
+            pil_img = ImageOps.invert(pil_img.convert('RGB'))
+
         # 1. Identify all subject code boxes
         code_candidates = []
         code_pattern = re.compile(r'^(?:[A-Z]{2,4}\d{4}|[A-Z0-9]{2,8}(?:-[A-Z0-9]+)?)$', re.IGNORECASE)
@@ -224,25 +326,82 @@ class TableExtractor:
         # Sort top-to-bottom by vertical coordinate
         code_candidates.sort(key=lambda x: x[1])
 
+        # Check for Format A header columns "Grade" and "Credits"
+        grade_col_x = None
+        credits_col_x = None
+        for b, t, _ in boxes:
+            t_norm = unicodedata.normalize('NFKC', t).strip().upper()
+            cx = sum(pt[0] for pt in b) / 4.0
+            cy = sum(pt[1] for pt in b) / 4.0
+            if 'GRADE' in t_norm and cx > 600 and cy < 650:
+                grade_col_x = cx
+            elif ('CREDIT' in t_norm or 'CREDITS' in t_norm) and cx > 600 and cy < 650:
+                credits_col_x = cx
+
+        is_format_a = (grade_col_x is not None and credits_col_x is not None and abs(grade_col_x - credits_col_x) < 160)
+
         is_hi_res = pil_img.height > 2000
         extracted_subjects = []
 
         for code, cy, box in code_candidates:
-            # Crop horizontal row slice
-            if is_hi_res:
-                # Watermark removal via binarization on high-res scanned sheets
-                row_img = pil_img.convert('L').crop((400, int(cy - 65), 2650, int(cy + 65)))
-                arr = np.array(row_img)
-                bin_arr = np.where(arr < 130, 0, 255).astype(np.uint8)
-                crop_for_ocr = np.stack([bin_arr]*3, axis=-1)
+            matched_grade = None
+            matched_credits = None
+            g_score = 0.0
+            c_score = 0.0
+
+            # 1. If Format A grid table detected, perform high-precision cell template matching
+            if is_format_a:
+                g_cell = pil_img.crop((int(grade_col_x - 45), int(cy - 22), int(grade_col_x + 45), int(cy + 22)))
+                c_cell = pil_img.crop((int(credits_col_x - 45), int(cy - 22), int(credits_col_x + 45), int(cy + 22)))
+                mg, g_score = cls.match_grade_cell(g_cell)
+                mc, c_score = cls.match_credits_cell(c_cell)
+                if mg and g_score >= 0.70:
+                    matched_grade = mg
+                if mc and c_score >= 0.70:
+                    matched_credits = mc
+
+            row_str = ''
+            if matched_grade:
+                norm_grade, grade_point, is_pass, needs_review = cls.normalize_grade(matched_grade)
+                credits = matched_credits or 3.0
             else:
-                row_img = pil_img.convert('RGB').crop((40, int(cy - 40), pil_img.width - 15, int(cy + 40)))
-                crop_for_ocr = np.array(row_img)
+                # 2. Crop horizontal row slice and use neural OCR (Format B & free-flowing text)
+                if is_hi_res:
+                    # Watermark removal via binarization on high-res scanned sheets
+                    row_img = pil_img.convert('L').crop((400, int(cy - 65), 2650, int(cy + 65)))
+                    arr = np.array(row_img)
+                    bin_arr = np.where(arr < 130, 0, 255).astype(np.uint8)
+                    crop_for_ocr = np.stack([bin_arr]*3, axis=-1)
+                else:
+                    row_img = pil_img.convert('RGB').crop((40, int(cy - 40), pil_img.width - 15, int(cy + 40)))
+                    crop_for_ocr = np.array(row_img)
 
-            row_boxes, _, _ = rapid_ocr.extract_boxes_and_text(crop_for_ocr)
-            row_str = ' '.join([t for _, t, _ in row_boxes]) if row_boxes else ''
+                row_boxes, _, _ = rapid_ocr.extract_boxes_and_text(crop_for_ocr)
+                row_str = ' '.join([t for _, t, _ in row_boxes]) if row_boxes else ''
 
-            norm_grade, grade_point, credits, is_pass, needs_review = cls.extract_grade_and_credits_from_row(row_str, code)
+                norm_grade, grade_point, credits, is_pass, needs_review = cls.extract_grade_and_credits_from_row(row_str, code)
+
+            # 3. Targeted right-cell fallback if grade is still unknown
+            if (norm_grade == 'UNKNOWN_GRADE' or needs_review) and hasattr(rapid_ocr, 'ocr') and hasattr(rapid_ocr.ocr, 'text_recognizer'):
+                try:
+                    cell = pil_img.crop((1010, int(cy - 25), 1110, int(cy + 25)))
+                    pad = Image.new('RGB', (160, 64), (255, 255, 255))
+                    pad.paste(cell, (30, 7))
+                    res, _ = rapid_ocr.ocr.text_recognizer(np.array(pad))
+                    if res and res[0]:
+                        raw_txt = unicodedata.normalize('NFKC', str(res[0][0])).upper()
+                        letters = [ch for ch in raw_txt if ch in 'ABCDEFMP']
+                        if letters:
+                            fallback_g = letters[-1]
+                            norm_grade, grade_point, is_pass, needs_review = cls.normalize_grade(fallback_g)
+                except Exception:
+                    pass
+
+            # Check standard curriculum credits if available
+            norm_code = code.strip().upper()
+            if norm_code in cls.STANDARD_CREDITS:
+                credits = cls.STANDARD_CREDITS[norm_code]
+
             title = cls.COURSE_CATALOG.get(code, code)
 
             # If title is just code, extract title substring from row_str
@@ -260,8 +419,8 @@ class TableExtractor:
                 'normalized_grade': norm_grade,
                 'grade_point': grade_point,
                 'is_pass': is_pass,
-                'confidence': 0.98,
-                'needs_review': False
+                'confidence': max(g_score, 0.95) if matched_grade else 0.95,
+                'needs_review': needs_review
             })
 
         return extracted_subjects
