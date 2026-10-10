@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/
+COPY backend/requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /app/
+COPY backend/ /app/
 
 # Collect static files for Django admin / static assets
 RUN python manage.py collectstatic --noinput || true

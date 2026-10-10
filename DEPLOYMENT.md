@@ -84,17 +84,50 @@ flutter build windows --release
 
 ---
 
-## ☁️ Option 3: Cloud Deployment (Render / Railway / VPS)
+## ☁️ Option 3: Cloud Deployment on Render (Step-by-Step)
 
-### Backend (Render or Railway):
-1. **Build Command**: `pip install -r requirements.txt && apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng libgl1`
-2. **Start Command**: `gunicorn gradelens.wsgi:application --bind 0.0.0.0:$PORT`
-3. **Environment Variables**:
-   - `DEBUG=0`
-   - `DJANGO_SECRET_KEY=<your-secret-key>`
-   - `DATABASE_URL=<postgres-connection-string>`
+GradeNexus backend is fully configured for Render with automated Docker builds, OpenCV/Tesseract system libraries, and Gunicorn production server.
 
-### Frontend (Vercel / Netlify / Cloudflare Pages):
-1. Build folder: `frontend/build/web`
-2. Redirects / SPA routing: rewrite `/*` to `/index.html`
-3. Set backend API URL in environment or reverse proxy `/api/`.
+### Deploying the Backend on Render:
+1. Log in to [Render.com](https://render.com) and click **New +** $\to$ **Web Service**.
+2. Connect your GitHub repository:
+   `https://github.com/morasantosh2007-rgb/CGPA_Calculator`
+3. Configure the service:
+   - **Name**: `gradenexus-backend` (or your preferred name)
+   - **Region**: Any (e.g. Oregon or Singapore)
+   - **Branch**: `main`
+   - **Root Directory**: *(Leave blank - uses repository root)*
+   - **Runtime**: **Docker**
+   - **Dockerfile Path**: *(Leave blank or `./Dockerfile` - Render picks up the root `Dockerfile` automatically)*
+   - **Instance Type**: **Free**
+4. Under **Advanced** / **Environment Variables**, add:
+   - `PYTHONUNBUFFERED`: `1`
+   - `DEBUG`: `True`
+   - `PORT`: `10000` (Render defaults to this)
+   - `DJANGO_SECRET_KEY`: *(Generate or enter any random string)*
+5. **Health Check Path**: `/health/`
+6. Click **Deploy Web Service**.
+   Render will build the Docker container and start Gunicorn automatically!
+   Your live backend URL will be: `https://<your-service-name>.onrender.com`
+
+---
+
+## 🌐 Connecting Frontend to Render Backend
+
+Once your backend is live on Render:
+
+### Web Deployment (Vercel / Netlify / GitHub Pages):
+Build the web release pointing directly to your Render backend:
+```bash
+cd frontend
+flutter build web --release --dart-define=API_BASE_URL=https://<your-service-name>.onrender.com/api
+```
+Deploy the generated `frontend/build/web/` folder to Vercel, Netlify, or Firebase Hosting.
+
+### Mobile APK Build:
+```bash
+cd frontend
+flutter build apk --release --dart-define=API_BASE_URL=https://<your-service-name>.onrender.com/api
+```
+The APK installed on Android devices will communicate directly with your Render cloud backend!
+
