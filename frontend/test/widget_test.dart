@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/theme/app_theme.dart';
+import 'package:gradenexus/core/theme/app_theme.dart';
 
 void main() {
   testWidgets('GradeLensApp smoke test', (WidgetTester tester) async {

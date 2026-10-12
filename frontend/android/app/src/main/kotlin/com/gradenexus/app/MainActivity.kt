@@ -1,4 +1,4 @@
-package com.gradelens.frontend
+package com.gradenexus.app
 
 import io.flutter.embedding.android.FlutterActivity
 
